@@ -42,8 +42,7 @@ struct RRDFilePrivate : public QSharedData
 
     ~RRDFilePrivate()
     {
-        if (items)
-            free(items);
+        resetData();
     }
 
     const QString fileName;
@@ -162,7 +161,7 @@ rrd_info_t *RRDFilePrivate::parseRRA(rrd_info_t *ptr)
         if (rraIdx < 0 || newName != rraName)
         {
             ++rraIdx;
-            this->rra.push_back(RRA());
+            this->rra.push_back(RRA(RRDFile(*this)));
             rraName = newName;
         }
 
@@ -205,8 +204,8 @@ rrd_info_t *RRDFilePrivate::parseRRA(rrd_info_t *ptr)
     {
         consFuncs.insert(it->function());
 
-        uint last = it->prevRow(lastUpdate.toTime_t(), pdpStep);
-        uint first = last - (it->pdpPerRow() * (it->rowCount() - 1) * pdpStep);
+        uint last = it->last();
+        uint first = it->first();
         QHash<RRA::ConsFunc, QDateTime>::iterator itOld =
                 oldest.find(it->function());
         if (itOld == oldest.end())
@@ -282,6 +281,10 @@ void RRDFilePrivate::resetData()
 
 RRDFile::RRDFile() :
     d_ptr()
+{}
+
+RRDFile::RRDFile(RRDFilePrivate &priv) :
+    d_ptr(&priv)
 {}
 
 RRDFile::RRDFile(const QString &fileName) :
@@ -372,6 +375,30 @@ QDateTime RRDFile::lastUpdate(RRA::ConsFunc function) const
 QDateTime RRDFile::firstUpdate(RRA::ConsFunc function) const
 {
     return d_ptr->oldest.value(function);
+}
+
+RRA RRDFile::bestMatch(RRA::ConsFunc function, const QDateTime &first, const QDateTime &last)
+{
+    RRA ret;
+
+    QList<RRA>::const_iterator it = d_ptr->rra.constBegin();
+    for (; it != d_ptr->rra.constEnd(); ++it)
+    {
+        if (it->function() != function)
+            continue;
+        else if (it->isInRange(first, last))
+        {
+            /* good candidate */
+            if (!ret.isValid() || !ret.isInRange(first, last) ||
+                    (it->pdpPerRow() < ret.pdpPerRow()))
+                ret = *it;
+        }
+        else if (!ret.isValid())
+            ret = *it;
+        else if (ret.coveredRange(first, last) < it->coveredRange(first, last))
+            ret = *it;
+    }
+    return ret;
 }
 
 bool RRDFile::fetch(

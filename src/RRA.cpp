@@ -26,19 +26,31 @@
 
 #include <QSharedData>
 #include <QHash>
+#include <QDateTime>
+
 #include "RRA.hpp"
+#include "RRDFile.hpp"
 
 struct RRAPrivate : public QSharedData
 {
-    RRAPrivate() :
+    RRAPrivate(const RRDFile &parent) :
         QSharedData(),
-        function(static_cast<RRA::ConsFunc>(-1))
+        function(static_cast<RRA::ConsFunc>(-1)),
+        pdpStep(parent.pdpStep()),
+        lastUpdate(parent.lastUpdate().toTime_t())
     {}
+
+    uint first() const
+    {
+        return lastUpdate - (pdpPerRow * (rowCount - 1) * pdpStep);
+    }
 
     RRA::ConsFunc function;
     uint pdpPerRow;
     uint rowCount;
     qreal xff;
+    uint pdpStep;
+    uint lastUpdate;
 };
 
 static QHash<QString, RRA::ConsFunc> mapInit()
@@ -54,7 +66,11 @@ static QHash<QString, RRA::ConsFunc> mapInit()
 static QHash<QString, RRA::ConsFunc> s_map = mapInit();
 
 RRA::RRA() :
-    d_ptr(new RRAPrivate)
+    d_ptr()
+{}
+
+RRA::RRA(const RRDFile &parent) :
+    d_ptr(new RRAPrivate(parent))
 {}
 
 RRA::~RRA()
@@ -73,7 +89,7 @@ RRA &RRA::operator =(const RRA &other)
 
 bool RRA::isValid() const
 {
-    return d_ptr->function != static_cast<ConsFunc>(-1);
+    return d_ptr && d_ptr->function != static_cast<ConsFunc>(-1);
 }
 
 RRA::ConsFunc RRA::function() const
@@ -96,6 +112,11 @@ qreal RRA::xff() const
     return d_ptr->xff;
 }
 
+uint RRA::pdpStep() const
+{
+    return d_ptr->pdpStep;
+}
+
 void RRA::setFunction(RRA::ConsFunc func)
 {
     d_ptr->function = func;
@@ -104,6 +125,7 @@ void RRA::setFunction(RRA::ConsFunc func)
 void RRA::setPdpPerRow(uint pdpPerRow)
 {
     d_ptr->pdpPerRow = pdpPerRow;
+    d_ptr->lastUpdate = prevRow(d_ptr->lastUpdate);
 }
 
 void RRA::setRowCount(uint rowCount)
@@ -116,14 +138,43 @@ void RRA::setXff(qreal xff)
     d_ptr->xff = xff;
 }
 
-uint RRA::prevRow(uint stamp, uint step) const
+uint RRA::prevRow(uint stamp) const
 {
-    return stamp - (stamp % (d_ptr->pdpPerRow * step));
+    return stamp - (stamp % (d_ptr->pdpPerRow * d_ptr->pdpStep));
 }
 
-uint RRA::nextRow(uint stamp, uint step) const
+uint RRA::nextRow(uint stamp) const
 {
-    return prevRow(stamp + d_ptr->pdpPerRow * step, step);
+    return prevRow(stamp + d_ptr->pdpPerRow * d_ptr->pdpStep);
+}
+
+uint RRA::first() const
+{
+    return d_ptr->first();
+}
+
+uint RRA::last() const
+{
+    return d_ptr->lastUpdate;
+}
+
+bool RRA::isInRange(const QDateTime &first, const QDateTime &last) const
+{
+    return (d_ptr->first() <= first.toTime_t()) &&
+            (d_ptr->lastUpdate >= last.toTime_t());
+}
+
+uint RRA::coveredRange(const QDateTime &first, const QDateTime &last) const
+{
+    uint start = d_ptr->first();
+    uint end = d_ptr->lastUpdate;
+
+    if (start < first.toTime_t())
+        start = first.toTime_t();
+    if (end > last.toTime_t())
+        end = last.toTime_t();
+
+    return end - start;
 }
 
 QString RRA::toString(RRA::ConsFunc f)

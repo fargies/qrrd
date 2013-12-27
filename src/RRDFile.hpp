@@ -44,10 +44,13 @@ class RRDFilePrivate;
 class RRDFile
 {
 public:
-    RRDFile();
     explicit RRDFile(const QString &fileName);
+    RRDFile();
+    RRDFile(RRDFilePrivate &priv);
     RRDFile(const RRDFile &other);
+
     ~RRDFile();
+
     RRDFile &operator = (const RRDFile &other);
 
     bool isValid() const;
@@ -66,77 +69,89 @@ public:
     QString dsName(uint index) const;
     QList<DataSource> ds() const;
 
-  /**
-   * @brief pdp step information
-   *
-   * @return the number of seconds between two consolidated points.
-   */
+    /**
+     * @brief pdp step information
+     *
+     * @return the number of seconds between two consolidated points.
+     */
     uint pdpStep() const;
 
-  /**
-   * @brief list of available consolidation functions.
-   */
+    /**
+     * @brief list of available consolidation functions.
+     */
     QSet<RRA::ConsFunc> consFuncs() const;
     bool hasFunc(RRA::ConsFunc func) const;
 
     QList<RRA> rra() const;
 
-  /**
-   * @brief return the latest value recorded for a given func
-   * @param[in] function
-   */
+    /**
+     * @brief return the latest value recorded for a given func
+     * @param[in] function
+     */
     QDateTime lastUpdate(RRA::ConsFunc function) const;
 
-  /**
-   * @brief return the oldest value the RRD can contain for a given func
-   *
-   * @note this value is not always available in the RRA database.
-   */
+    /**
+     * @brief return the oldest value the RRD can contain for a given func
+     *
+     * @note this value is not always available in the RRA database.
+     */
     QDateTime firstUpdate(RRA::ConsFunc function) const;
 
-  /**
-   * @brief fetch data from the RRD file.
-   *
-   * @details all the datastores are loaded at the same time.
-   *
-   * @note loaded start/end/resolution doesn't obviously match requested ones.
-   */
+    /**
+     * @brief find the best matching RRA
+     * @param[in] function
+     * @param[in] first
+     * @param[in] last
+     * @return the best matching RRA
+     */
+    RRA bestMatch(
+            RRA::ConsFunc function,
+            const QDateTime &first,
+            const QDateTime &last);
+
+    /**
+     * @brief fetch data from the RRD file.
+     *
+     * @details all the datastores are loaded at the same time.
+     *
+     * @note loaded start/end/resolution doesn't obviously match requested ones.
+     */
     bool fetch(
             RRA::ConsFunc function,
             const QDateTime &first,
             const QDateTime &last,
             uint resolution = 0);
 
-  /**
-   * @brief starting date
-   *
-   * @details fetched data starting date.
-   */
+    /**
+     * @brief starting date
+     *
+     * @details fetched data starting date.
+     */
     QDateTime first() const;
 
     /**
-   * @brief consolidation function
-   *
-   * @note this function can also be used to return the first function found
-   * when no data has already been fetched.
-   *
-   * @details fetched data consolidation function.
-   */
+     * @brief consolidation function
+     *
+     * @note this function can also be used to return the first function found
+     * when no data has already been fetched.
+     *
+     * @details fetched data consolidation function.
+     */
     RRA::ConsFunc function() const;
 
-  /**
-   * @brief end date
-   *
-   * @details fetched data end date.
-   */
+    /**
+     * @brief end date
+     *
+     * @details fetched data end date.
+     */
     QDateTime last() const;
 
-  /**
-   * @brief fetched data step
-   *
-   * @details in seconds.
-   * @return fetched data step in seconds.
-   */
+    /**
+     * @brief fetched data step
+     *
+     * @details in seconds.
+     * @return fetched data step in seconds.
+     */
     uint step() const;
 
     /**
@@ -167,4 +182,3 @@ private:
 };
 
 #endif // RRDFILE_HPP
-

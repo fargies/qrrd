@@ -29,12 +29,14 @@
 
 #include <QSharedDataPointer>
 
+class RRDFile;
 class RRAPrivate;
 
 class RRA
 {
 public:
     RRA();
+    RRA(const RRDFile &parent);
     ~RRA();
     RRA(const RRA &other);
 
@@ -55,6 +57,12 @@ public:
     uint rowCount() const;
     qreal xff() const;
 
+    /**
+     * @brief RRDFile step information
+     * @return
+     */
+    uint pdpStep() const;
+
     void setFunction(ConsFunc func);
     void setPdpPerRow(uint pdpPerRow);
     void setRowCount(uint rowCount);
@@ -63,12 +71,44 @@ public:
     /**
      * @brief previous consolidated point (row)
      */
-    uint prevRow(uint stamp, uint step) const;
+    uint prevRow(uint stamp) const;
 
     /**
      * @brief next consolidated point (row)
      */
-    uint nextRow(uint stamp, uint step) const;
+    uint nextRow(uint stamp) const;
+
+    /**
+     * @brief first row timestamp
+     * @return first row timestamp
+     */
+    uint first() const;
+
+    /**
+     * @brief last row timestamp
+     * @return last row timestamp
+     */
+    uint last() const;
+
+    /**
+     * @brief check that the given RRA is withing this range
+     * @param[in] first begining of the timerange.
+     * @param[in] last end of the timerange.
+     * @return true if the given RRA covers this range.
+     */
+    bool isInRange(
+            const QDateTime &first,
+            const QDateTime &last) const;
+
+    /**
+     * @brief return the time covered by this RRA
+     * @param[in] first begining of the timerange.
+     * @param[in] last end of the timerange.
+     * @return the number of seconds covered by this RRA.
+     */
+    uint coveredRange(
+            const QDateTime &first,
+            const QDateTime &last) const;
 
     /**
      * @brief convert a ConsFunc toString
