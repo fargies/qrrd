@@ -57,6 +57,8 @@ public:
 
     QString version() const;
 
+    QString fileName() const;
+
     /**
      * @brief last update timestamp
      * @note last update is not obviously the last consolidated datapoint

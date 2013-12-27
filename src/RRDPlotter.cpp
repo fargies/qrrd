@@ -103,10 +103,8 @@ void RRDPlotter::draw(
 
     for (int i = 0; i < d_ptr->paths.size(); ++i)
     {
-        rrd_value_t v;
-        stream >> v;
-
-        d_ptr->paths[i] = QPainterPath(QPointF(cur, v));
+        d_ptr->paths[i] = QPainterPath();
+        d_ptr->paths[i].moveTo(cur, 0);
     }
 
     while (!stream.atEnd())
@@ -123,6 +121,7 @@ void RRDPlotter::draw(
 
     for (int i = 0; i < d_ptr->paths.size(); ++i)
     {
+        d_ptr->paths[i].lineTo(cur, 0);
         painter.setPen(Qt::black);
         uint delta = end.toTime_t() - start.toTime_t();
         if (delta == 0)

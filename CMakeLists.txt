@@ -49,5 +49,6 @@ install(FILES
 add_subdirectory(src)
 add_subdirectory(tests)
 add_subdirectory(doc)
+add_subdirectory(tools)
 add_subdirectory(designer)
 

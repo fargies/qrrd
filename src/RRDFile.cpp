@@ -327,6 +327,11 @@ QString RRDFile::version() const
     return d_ptr->version;
 }
 
+QString RRDFile::fileName() const
+{
+    return d_ptr->fileName;
+}
+
 QDateTime RRDFile::lastUpdate() const
 {
     return d_ptr->lastUpdate;
