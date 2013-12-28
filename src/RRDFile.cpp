@@ -36,7 +36,6 @@ struct RRDFilePrivate : public QSharedData
     RRDFilePrivate(const QString &fileName) :
         fileName(fileName),
         version(),
-        itemCount(0),
         items(0)
     {}
 
@@ -59,11 +58,7 @@ struct RRDFilePrivate : public QSharedData
     QHash<RRA::ConsFunc, QDateTime> latest;
 
     /* fetched data related */
-    QDateTime first;
-    QDateTime last;
-    RRA::ConsFunc function;
-    uint step;
-    uint itemCount;
+    RRA current;
     rrd_value_t *items;
 
     void resetData();
@@ -204,20 +199,20 @@ rrd_info_t *RRDFilePrivate::parseRRA(rrd_info_t *ptr)
     {
         consFuncs.insert(it->function());
 
-        uint last = it->last();
-        uint first = it->first();
+        const QDateTime last = it->last();
+        const QDateTime first = it->first();
         QHash<RRA::ConsFunc, QDateTime>::iterator itOld =
                 oldest.find(it->function());
         if (itOld == oldest.end())
-            oldest.insert(it->function(), QDateTime::fromTime_t(first));
-        else if (first < itOld->toTime_t())
-            itOld.value() = QDateTime::fromTime_t(first);
+            oldest.insert(it->function(), first);
+        else if (first < itOld.value())
+            itOld.value() = first;
 
         itOld = latest.find(it->function());
         if (itOld == latest.end())
-            latest.insert(it->function(), QDateTime::fromTime_t(last));
-        else if (last > itOld->toTime_t())
-            itOld.value() = QDateTime::fromTime_t(last);
+            latest.insert(it->function(), last);
+        else if (last > itOld.value())
+            itOld.value() = last;
     }
 
     return ptr;
@@ -268,14 +263,15 @@ bool RRDFilePrivate::parse(rrd_info_t *ptr)
 
 void RRDFilePrivate::resetData()
 {
-    first = last = QDateTime();
-    step = 0;
+    current.setFirst(QDateTime());
+    current.setRowCount(0);
+    current.setFunction(RRA::INVALID);
+    current.setPdpPerRow(0);
 
     if (items)
     {
         free(items);
         items = 0;
-        itemCount = 0;
     }
 }
 
@@ -296,9 +292,12 @@ RRDFile::RRDFile(const QString &fileName) :
 
     if (d_ptr->parse(info))
     {
+        d_ptr->current = RRA(*this);
         if (!d_ptr->consFuncs.isEmpty())
-            d_ptr->function = *d_ptr->consFuncs.begin();
+            d_ptr->current.setFunction(*d_ptr->consFuncs.begin());
     }
+    else
+        d_ptr->current = RRA(*this);
 
     rrd_info_free(info);
 }
@@ -460,39 +459,25 @@ bool RRDFile::fetch(
     }
     else
     {
-        d_ptr->first = QDateTime::fromTime_t(realStart + step);
-        d_ptr->last = QDateTime::fromTime_t(realEnd);
-        d_ptr->step = step;
-        d_ptr->itemCount = (realEnd - realStart) / step;
-        d_ptr->function = func;
+        if (d_ptr->current.pdpStep() == 0)
+            d_ptr->current = RRA(*this);
+        d_ptr->current.setRowCount((realEnd - realStart) / step);
+        d_ptr->current.setFunction(func);
+        d_ptr->current.setPdpPerRow(step / d_ptr->pdpStep);
+        d_ptr->current.setFirst(QDateTime::fromTime_t(realStart + step));
     }
 
-    return d_ptr->itemCount != 0;
+    return d_ptr->current.rowCount() != 0;
 }
 
-QDateTime RRDFile::first() const
+RRA RRDFile::current() const
 {
-    return d_ptr->first;
-}
-
-RRA::ConsFunc RRDFile::function() const
-{
-    return d_ptr->function;
-}
-
-QDateTime RRDFile::last() const
-{
-    return d_ptr->last;
-}
-
-uint RRDFile::step() const
-{
-    return d_ptr->step;
+    return d_ptr->current;
 }
 
 uint RRDFile::itemCount() const
 {
-    return d_ptr->itemCount;
+    return d_ptr->current.rowCount();
 }
 
 QByteArray RRDFile::items() const
@@ -500,7 +485,7 @@ QByteArray RRDFile::items() const
     QByteArray ret;
 
     ret.setRawData(reinterpret_cast<const char *>(d_ptr->items),
-                   d_ptr->itemCount * d_ptr->ds.size() *
+                   d_ptr->current.rowCount() * d_ptr->ds.size() *
                    sizeof (rrd_value_t));
 
     return ret;
@@ -511,3 +496,4 @@ void RRDFile::clear()
     if (d_ptr->items)
         d_ptr->resetData();
 }
+

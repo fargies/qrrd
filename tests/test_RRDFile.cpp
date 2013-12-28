@@ -67,8 +67,8 @@ protected:
         CPPUNIT_ASSERT(f.fetch(RRA::AVERAGE,
                                f.firstUpdate(RRA::AVERAGE),
                                f.lastUpdate(RRA::AVERAGE)));
-        CPPUNIT_ASSERT_EQUAL(f.firstUpdate(RRA::AVERAGE), f.first());
-        CPPUNIT_ASSERT_EQUAL(QDateTime::fromTime_t(1387670400), f.last());
+        CPPUNIT_ASSERT_EQUAL(f.firstUpdate(RRA::AVERAGE), f.current().first());
+        CPPUNIT_ASSERT_EQUAL(QDateTime::fromTime_t(1387670400), f.current().last());
         CPPUNIT_ASSERT_EQUAL((uint) 798, f.itemCount());
     }
 };

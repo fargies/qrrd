@@ -62,8 +62,8 @@ int RRDWidget::addSource(const RRDFile &rrd)
 {
     if (!d_ptr->start.isValid() || !d_ptr->end.isValid())
     {
-        d_ptr->start = rrd.firstUpdate(rrd.function());
-        d_ptr->end = rrd.lastUpdate(rrd.function());
+        d_ptr->start = rrd.firstUpdate(rrd.current().function());
+        d_ptr->end = rrd.lastUpdate(rrd.current().function());
     }
     d_ptr->rrd.push_back(RRDPlotter(rrd));
 }
@@ -108,3 +108,4 @@ void RRDWidget::paintEvent(QPaintEvent * /*evt*/)
                  p);
     }
 }
+

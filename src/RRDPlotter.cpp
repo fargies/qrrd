@@ -85,17 +85,22 @@ void RRDPlotter::draw(
         const QDateTime &end,
         QPainter &painter)
 {
-    if (!isValid() || !start.isValid() || !end.isValid())
+    if (!isValid() || !start.isValid() || !end.isValid() ||
+            start == end)
         return;
 
+    RRA current(d_ptr->rrd.current());
     // FIXME: handle resolution ?
-    if (d_ptr->rrd.function() != d_ptr->func
-            || d_ptr->rrd.first() > start
-            || d_ptr->rrd.last() < end)
+    if (!current.isValid()
+            || current.function() != d_ptr->func
+            || !current.isInRange(start, end))
+    {
         d_ptr->rrd.fetch(d_ptr->func, start, end);
+        current = d_ptr->rrd.current();
+    }
 
     //FIXME: display all the graphs ?
-    uint step(d_ptr->rrd.step());
+    uint step(current.step());
     uint cur = 0;
     const QByteArray data(d_ptr->rrd.items());
     QDataStream stream(data);
@@ -119,15 +124,19 @@ void RRDPlotter::draw(
         cur += step;
     }
 
+    uint delta = end.toTime_t() - start.toTime_t();
+    uint startTrans = current.first().toTime_t() - start.toTime_t();
+
     for (int i = 0; i < d_ptr->paths.size(); ++i)
     {
+        if (startTrans)
+            d_ptr->paths[i].translate(startTrans, 0);
         d_ptr->paths[i].lineTo(cur, 0);
         painter.setPen(Qt::black);
-        uint delta = end.toTime_t() - start.toTime_t();
-        if (delta == 0)
-            continue;
+
         painter.scale((qreal) painter.window().width() / delta, 1);
         painter.setBrush(QBrush(Qt::yellow));
         painter.drawPath(d_ptr->paths[i]);
     }
 }
+

@@ -125,36 +125,12 @@ public:
             uint resolution = 0);
 
     /**
-     * @brief starting date
+     * @brief virtual RRA representing fetched data
      *
-     * @details fetched data starting date.
+     * @note this object's function is set to the first function found when no
+     * data has already been fetced.
      */
-    QDateTime first() const;
-
-    /**
-     * @brief consolidation function
-     *
-     * @note this function can also be used to return the first function found
-     * when no data has already been fetched.
-     *
-     * @details fetched data consolidation function.
-     */
-    RRA::ConsFunc function() const;
-
-    /**
-     * @brief end date
-     *
-     * @details fetched data end date.
-     */
-    QDateTime last() const;
-
-    /**
-     * @brief fetched data step
-     *
-     * @details in seconds.
-     * @return fetched data step in seconds.
-     */
-    uint step() const;
+    RRA current() const;
 
     /**
      * @brief fetched data items

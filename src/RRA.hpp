@@ -44,6 +44,7 @@ public:
 
     enum ConsFunc
     {
+        INVALID = -1,
         AVERAGE,
         MIN,
         MAX,
@@ -59,36 +60,44 @@ public:
 
     /**
      * @brief RRDFile step information
-     * @return
      */
     uint pdpStep() const;
+
+    /**
+     * @brief row step information
+     *
+     * @return row step in seconds
+     */
+    uint step() const;
 
     void setFunction(ConsFunc func);
     void setPdpPerRow(uint pdpPerRow);
     void setRowCount(uint rowCount);
     void setXff(qreal xff);
+    void setFirst(const QDateTime &first);
+    void setLast(const QDateTime &last);
 
     /**
      * @brief previous consolidated point (row)
      */
-    uint prevRow(uint stamp) const;
+    QDateTime prevRow(const QDateTime &stamp) const;
 
     /**
      * @brief next consolidated point (row)
      */
-    uint nextRow(uint stamp) const;
+    QDateTime nextRow(const QDateTime &stamp) const;
 
     /**
      * @brief first row timestamp
      * @return first row timestamp
      */
-    uint first() const;
+    QDateTime first() const;
 
     /**
      * @brief last row timestamp
      * @return last row timestamp
      */
-    uint last() const;
+    QDateTime last() const;
 
     /**
      * @brief check that the given RRA is withing this range
