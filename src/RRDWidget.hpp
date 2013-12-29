@@ -28,14 +28,14 @@
 #define RRDWIDGET_HPP
 
 #include <QScopedPointer>
-#include <QWidget>
+#include <QGraphicsView>
 
 #include "RRDFile.hpp"
 #include "RRDPlotter.hpp"
 
 class RRDWidgetPrivate;
 
-class RRDWidget : public QWidget
+class RRDWidget : public QGraphicsView
 {
     Q_OBJECT
     Q_PROPERTY(QDateTime start READ start WRITE setStart NOTIFY startChanged)
@@ -47,6 +47,7 @@ public:
 
     QDateTime start() const;
     QDateTime end() const;
+    uint range() const;
 
     int addSource(const RRDFile &rrd);
     RRDFile source(int idx);
@@ -61,7 +62,11 @@ signals:
     void endChanged(const QDateTime &end);
 
 protected:
+    void updatePaths();
     void paintEvent(QPaintEvent *evt);
+    void mouseDoubleClickEvent(QMouseEvent * evt);
+
+    void fit();
 
     QScopedPointer<RRDWidgetPrivate> d_ptr;
 };

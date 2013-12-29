@@ -26,6 +26,9 @@
 
 #include <QPainter>
 #include <QPoint>
+#include <QGraphicsScene>
+#include <QMouseEvent>
+#include <QDebug>
 
 #include "RRDWidget.hpp"
 
@@ -40,9 +43,14 @@ struct RRDWidgetPrivate
 };
 
 RRDWidget::RRDWidget(QWidget *parent) :
-    QWidget(parent),
+    QGraphicsView(parent),
     d_ptr(new RRDWidgetPrivate)
 {
+    setDragMode(QGraphicsView::ScrollHandDrag);
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setBackgroundBrush(QBrush(Qt::red, Qt::CrossPattern));
+    setScene(new QGraphicsScene(this));
 }
 
 RRDWidget::~RRDWidget()
@@ -58,6 +66,14 @@ QDateTime RRDWidget::end() const
     return d_ptr->end;
 }
 
+uint RRDWidget::range() const
+{
+    if (!d_ptr->end.isValid() || !d_ptr->start.isValid())
+        return 0;
+    else
+        return d_ptr->end.toTime_t() - d_ptr->start.toTime_t();
+}
+
 int RRDWidget::addSource(const RRDFile &rrd)
 {
     if (!d_ptr->start.isValid() || !d_ptr->end.isValid())
@@ -66,6 +82,7 @@ int RRDWidget::addSource(const RRDFile &rrd)
         d_ptr->end = rrd.lastUpdate(rrd.current().function());
     }
     d_ptr->rrd.push_back(RRDPlotter(rrd));
+    updatePaths();
 }
 
 RRDFile RRDWidget::source(int idx)
@@ -84,6 +101,7 @@ void RRDWidget::setStart(const QDateTime &start)
     {
         d_ptr->start = start;
         emit startChanged(start);
+        update();
     }
 }
 
@@ -93,19 +111,66 @@ void RRDWidget::setEnd(const QDateTime &end)
     {
         d_ptr->end = end;
         emit endChanged(end);
+        update();
     }
 }
 
-void RRDWidget::paintEvent(QPaintEvent * /*evt*/)
+void RRDWidget::updatePaths()
 {
-    QPainter p(this);
-
     QList<RRDPlotter>::iterator it = d_ptr->rrd.begin();
     for (; it != d_ptr->rrd.end(); ++it)
     {
-        it->draw(d_ptr->start,
-                 d_ptr->end,
-                 p);
+        it->prepare(d_ptr->start, d_ptr->end);
+        for (int i = 0; i < it->dsNames().size(); ++i)
+        {
+            /* FIXME: do something with the pointer ? */
+            scene()->addPath(it->path(i), QPen(Qt::black), QBrush(Qt::yellow));//it->pen(i), it->brush(i));
+        }
     }
+    fitInView(0, 0, range(), height());
+    update();
+}
+
+void RRDWidget::paintEvent(QPaintEvent *evt)
+{
+    fit();
+    QGraphicsView::paintEvent(evt);
+}
+
+void RRDWidget::mouseDoubleClickEvent(QMouseEvent *evt)
+{
+    uint delta;
+    QPointF pos = mapToScene(evt->pos());
+    QRectF view(mapToScene(0, 0), mapToScene(width(), height()));
+
+    switch (evt->button())
+    {
+        case Qt::LeftButton:
+            {
+                qDebug() << "before" << view;
+                view.setWidth(view.width() / 2);
+                view.setHeight(view.height() / 2);
+                view.moveCenter(pos);
+                fitInView(view);
+            }
+            break;
+        case Qt::RightButton:
+            {
+                view.setWidth(view.width() * 2);
+                view.setHeight(view.height() * 2);
+                view.moveCenter(pos);
+                fitInView(view);
+            }
+            break;
+        default: break;
+    }
+}
+
+void RRDWidget::fit()
+{
+//    fitInView(-verticalScrollBar()->, 0, range(), height());
+    /*resetTransform();
+    scale((qreal) width() / (d_ptr->end.toTime_t() - d_ptr->start.toTime_t()),
+            1);*/
 }
 

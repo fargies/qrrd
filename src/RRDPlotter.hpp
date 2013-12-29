@@ -49,7 +49,34 @@ public:
 
     RRDFile rrd() const;
 
-    void draw(const QDateTime &start, const QDateTime &end, QPainter &painter);
+    /**
+     * @brief direct access to rrd object.
+     *
+     * @details this operator is useful to retrieve information such as dsNames
+     */
+    const RRDFile *operator -> () const;
+    RRDFile *operator -> ();
+
+    void prepare(const QDateTime &start, const QDateTime &end);
+
+    QStringList dsNames() const;
+
+    /**
+     * @brief retrieve the associated painterPath
+     */
+    QPainterPath path(uint index) const;
+
+    /**
+     * @brief retrieve a painting brush
+     */
+    QBrush brush(uint index) const;
+    void setBrush(uint index, const QBrush &brush);
+
+    /**
+     * @brief retrieve a painting pen
+     */
+    QPen pen(uint index) const;
+    void setPen(uint index, const QPen &pen);
 
     /**
      * @brief select consolidation function to display
@@ -57,6 +84,9 @@ public:
      * @return true if this function exists for the given RRD file
      */
     bool setConsFunc(RRA::ConsFunc func);
+
+    QDateTime start() const;
+    QDateTime end() const;
 
 protected:
     QSharedDataPointer<RRDPlotterPrivate> d_ptr;

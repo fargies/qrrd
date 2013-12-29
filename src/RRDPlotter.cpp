@@ -16,17 +16,21 @@ struct RRDPlotterPrivate : public QSharedData
         rrd.clear();
         const QSet<RRA::ConsFunc> funcs(rrd.consFuncs());
 
-        if (funcs.isEmpty())
-            func = static_cast<RRA::ConsFunc>(-1);
-        else
-            func = *funcs.constBegin();
+        func = funcs.isEmpty() ? RRA::INVALID : *funcs.constBegin();
 
         paths.resize(rrd.ds().size());
     }
 
+    struct Paths
+    {
+        QPainterPath path;
+        QBrush brush;
+        QPen pen;
+    };
+
     RRDFile rrd;
     RRA::ConsFunc func;
-    QVector<QPainterPath> paths;
+    QVector<Paths> paths;
 };
 
 RRDPlotter::RRDPlotter() :
@@ -67,6 +71,21 @@ RRDFile RRDPlotter::rrd() const
     return d_ptr->rrd;
 }
 
+QStringList RRDPlotter::dsNames() const
+{
+    return this->rrd().dsNames();
+}
+
+const RRDFile *RRDPlotter::operator -> () const
+{
+    return &d_ptr->rrd;
+}
+
+RRDFile *RRDPlotter::operator -> ()
+{
+    return &d_ptr->rrd;
+}
+
 bool RRDPlotter::setConsFunc(RRA::ConsFunc func)
 {
     if (func == d_ptr->func)
@@ -80,10 +99,9 @@ bool RRDPlotter::setConsFunc(RRA::ConsFunc func)
     }
 }
 
-void RRDPlotter::draw(
+void RRDPlotter::prepare(
         const QDateTime &start,
-        const QDateTime &end,
-        QPainter &painter)
+        const QDateTime &end)
 {
     if (!isValid() || !start.isValid() || !end.isValid() ||
             start == end)
@@ -108,8 +126,8 @@ void RRDPlotter::draw(
 
     for (int i = 0; i < d_ptr->paths.size(); ++i)
     {
-        d_ptr->paths[i] = QPainterPath();
-        d_ptr->paths[i].moveTo(cur, 0);
+        d_ptr->paths[i].path = QPainterPath();
+        d_ptr->paths[i].path.moveTo(cur, 0);
     }
 
     while (!stream.atEnd())
@@ -119,7 +137,7 @@ void RRDPlotter::draw(
             rrd_value_t v;
             stream >> v;
 
-            d_ptr->paths[i].lineTo(cur, v);
+            d_ptr->paths[i].path.lineTo(cur, -v);
         }
         cur += step;
     }
@@ -129,14 +147,66 @@ void RRDPlotter::draw(
 
     for (int i = 0; i < d_ptr->paths.size(); ++i)
     {
+        d_ptr->paths[i].path.lineTo(cur, 0);
         if (startTrans)
-            d_ptr->paths[i].translate(startTrans, 0);
-        d_ptr->paths[i].lineTo(cur, 0);
-        painter.setPen(Qt::black);
+            d_ptr->paths[i].path.translate(startTrans, 0);
+
+/*        painter.setPen(Qt::black);
 
         painter.scale((qreal) painter.window().width() / delta, 1);
         painter.setBrush(QBrush(Qt::yellow));
-        painter.drawPath(d_ptr->paths[i]);
+        painter.drawPath(d_ptr->paths[i]);*/
     }
+}
+
+QPainterPath RRDPlotter::path(uint index) const
+{
+    return d_ptr->paths.value(index).path;
+}
+
+QBrush RRDPlotter::brush(uint index) const
+{
+    return d_ptr->paths.value(index).brush;
+}
+
+void RRDPlotter::setBrush(uint index, const QBrush &brush)
+{
+    if (index >= d_ptr->paths.size())
+        return;
+    d_ptr->paths[index].brush = brush;
+}
+
+QPen RRDPlotter::pen(uint index) const
+{
+    return d_ptr->paths.value(index).pen;
+}
+
+void RRDPlotter::setPen(uint index, const QPen &pen)
+{
+    if (index >= d_ptr->paths.size())
+        return;
+    d_ptr->paths[index].pen = pen;
+}
+
+QDateTime RRDPlotter::start() const
+{
+    if (!d_ptr || d_ptr->paths.isEmpty()
+            || d_ptr->paths[0].path.isEmpty()
+            || !d_ptr->rrd.current().isValid())
+        return QDateTime();
+    else
+        return QDateTime::fromTime_t(d_ptr->rrd.current().first().toTime_t() +
+                d_ptr->paths[0].path.elementAt(0).x);
+}
+
+QDateTime RRDPlotter::end() const
+{
+    if (!d_ptr || d_ptr->paths.isEmpty()
+            || d_ptr->paths[0].path.isEmpty()
+            || !d_ptr->rrd.current().isValid())
+        return QDateTime();
+    else
+        return QDateTime::fromTime_t(d_ptr->rrd.current().last().toTime_t() +
+                d_ptr->paths[0].path.elementAt(0).x);
 }
 
