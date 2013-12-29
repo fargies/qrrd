@@ -65,6 +65,8 @@ protected:
     void updatePaths();
     void paintEvent(QPaintEvent *evt);
     void mouseDoubleClickEvent(QMouseEvent * evt);
+    void mouseReleaseEvent(QMouseEvent *evt);
+    void mouseMoveEvent(QMouseEvent *evt);
 
     void fit();
 

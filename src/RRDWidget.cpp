@@ -28,6 +28,7 @@
 #include <QPoint>
 #include <QGraphicsScene>
 #include <QMouseEvent>
+#include <QGraphicsSimpleTextItem>
 #include <QDebug>
 
 #include "RRDWidget.hpp"
@@ -40,6 +41,7 @@ struct RRDWidgetPrivate
     QDateTime start;
     QDateTime end;
     QList<RRDPlotter> rrd;
+    QGraphicsSimpleTextItem *pos;
 };
 
 RRDWidget::RRDWidget(QWidget *parent) :
@@ -49,8 +51,12 @@ RRDWidget::RRDWidget(QWidget *parent) :
     setDragMode(QGraphicsView::ScrollHandDrag);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    setBackgroundBrush(QBrush(Qt::red, Qt::CrossPattern));
     setScene(new QGraphicsScene(this));
+    viewport()->setCursor(Qt::CrossCursor);
+
+    QGraphicsRectItem *rect = scene()->addRect(QRectF(0, 0, 0, 0));
+    d_ptr->pos = new QGraphicsSimpleTextItem(rect);
+    setMouseTracking(true);
 }
 
 RRDWidget::~RRDWidget()
@@ -133,6 +139,37 @@ void RRDWidget::updatePaths()
 
 void RRDWidget::paintEvent(QPaintEvent *evt)
 {
+    {
+    QPainter p(viewport());
+    QPointF current = mapToScene(0, 0);
+    QVector<uint> timeSep(5);
+    timeSep[0] = 10000;
+    timeSep[1] = 50000;
+    timeSep[2] = 100000;
+    timeSep[3] = 300000;
+    timeSep[4] = 600000;
+
+    for (int i = 0; i < timeSep.size(); ++i)
+    {
+        QPoint pt = mapFromScene(current.x() + timeSep[i], 0);
+        qDebug() << pt.x();
+        if (pt.x() > 40)
+        {
+            current.setX(qRound(current.x()) % timeSep[i]);
+            while (pt.x() <= width())
+            {
+                current.setX(current.x() + timeSep[i]);
+                pt = mapFromScene(current.x(), 0);
+                pt.setY(height());
+                p.drawLine(pt.x(), 0, pt.x(), height());
+                p.drawText(pt, QDateTime::fromTime_t(current.x()).toString());
+                qDebug() << QDateTime::fromTime_t(current.x()).toString();
+            }
+            break;
+        }
+    }
+    }
+
     fit();
     QGraphicsView::paintEvent(evt);
 }
@@ -147,7 +184,6 @@ void RRDWidget::mouseDoubleClickEvent(QMouseEvent *evt)
     {
         case Qt::LeftButton:
             {
-                qDebug() << "before" << view;
                 view.setWidth(view.width() / 2);
                 view.setHeight(view.height() / 2);
                 view.moveCenter(pos);
@@ -164,6 +200,27 @@ void RRDWidget::mouseDoubleClickEvent(QMouseEvent *evt)
             break;
         default: break;
     }
+}
+
+void RRDWidget::mouseReleaseEvent(QMouseEvent *evt)
+{
+    QGraphicsView::mouseReleaseEvent(evt);
+    viewport()->setCursor(Qt::CrossCursor);
+}
+
+void RRDWidget::mouseMoveEvent(QMouseEvent *evt)
+{
+    d_ptr->pos->setText(QString("%1 %2").arg(evt->x()).arg(evt->y()));
+
+    QGraphicsRectItem *rect = static_cast<QGraphicsRectItem*>(d_ptr->pos->parentItem());
+    QRectF bound = d_ptr->pos->boundingRect();
+    bound.adjust(-2, -2, 2, 2);
+    bound.moveBottomRight(mapToScene(width(), height()));
+    d_ptr->pos->setY(bound.height());
+    qDebug() << bound;
+    rect->setRect(bound);
+
+    QGraphicsView::mouseMoveEvent(evt);
 }
 
 void RRDWidget::fit()
