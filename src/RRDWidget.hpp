@@ -53,6 +53,8 @@ public:
     RRDFile source(int idx);
     QList<RRDPlotter> sources() const;
 
+    QGraphicsView *overlay() const;
+
 public slots:
     void setStart(const QDateTime &start);
     void setEnd(const QDateTime &end);
@@ -63,12 +65,10 @@ signals:
 
 protected:
     void updatePaths();
-    void paintEvent(QPaintEvent *evt);
+
     void mouseDoubleClickEvent(QMouseEvent * evt);
     void mouseReleaseEvent(QMouseEvent *evt);
-    void mouseMoveEvent(QMouseEvent *evt);
-
-    void fit();
+    void paintEvent(QPaintEvent *event);
 
     QScopedPointer<RRDWidgetPrivate> d_ptr;
 };

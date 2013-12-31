@@ -32,16 +32,20 @@
 #include <QDebug>
 
 #include "RRDWidget.hpp"
+#include "RRDGrid.hpp"
 
 struct RRDWidgetPrivate
 {
-    RRDWidgetPrivate()
+    RRDWidgetPrivate() :
+        grid(0),
+        overlay(0)
     {}
 
     QDateTime start;
     QDateTime end;
     QList<RRDPlotter> rrd;
-    QGraphicsSimpleTextItem *pos;
+    RRDGrid *grid;
+    QGraphicsView *overlay;
 };
 
 RRDWidget::RRDWidget(QWidget *parent) :
@@ -53,14 +57,18 @@ RRDWidget::RRDWidget(QWidget *parent) :
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setScene(new QGraphicsScene(this));
     viewport()->setCursor(Qt::CrossCursor);
+    setViewportMargins(50,50,50,50);
 
-    QGraphicsRectItem *rect = scene()->addRect(QRectF(0, 0, 0, 0));
-    d_ptr->pos = new QGraphicsSimpleTextItem(rect);
-    setMouseTracking(true);
+    d_ptr->grid = new RRDGrid(this);
+    d_ptr->overlay = new QGraphicsView(this);
+    d_ptr->overlay->setScene(new QGraphicsScene(d_ptr->overlay));
+    d_ptr->overlay->setAcceptDrops();
 }
 
 RRDWidget::~RRDWidget()
-{}
+{
+    delete d_ptr->grid;
+}
 
 QDateTime RRDWidget::start() const
 {
@@ -135,47 +143,25 @@ void RRDWidget::updatePaths()
     }
     fitInView(0, 0, range(), height());
     update();
+    overlay()->scene()->addRect(rect(), QPen(Qt::yellow), QBrush(Qt::yellow, Qt::SolidPattern));
 }
 
-void RRDWidget::paintEvent(QPaintEvent *evt)
+void RRDWidget::paintEvent(QPaintEvent *event)
 {
-    {
-    QPainter p(viewport());
-    QPointF current = mapToScene(0, 0);
-    QVector<uint> timeSep(5);
-    timeSep[0] = 10000;
-    timeSep[1] = 50000;
-    timeSep[2] = 100000;
-    timeSep[3] = 300000;
-    timeSep[4] = 600000;
+    QPainter p(this);
+    QGraphicsView::paintEvent(event);
+    if (d_ptr->overlay)
+        d_ptr->overlay->render(&p, rect());
+}
 
-    for (int i = 0; i < timeSep.size(); ++i)
-    {
-        QPoint pt = mapFromScene(current.x() + timeSep[i], 0);
-        qDebug() << pt.x();
-        if (pt.x() > 40)
-        {
-            current.setX(qRound(current.x()) % timeSep[i]);
-            while (pt.x() <= width())
-            {
-                current.setX(current.x() + timeSep[i]);
-                pt = mapFromScene(current.x(), 0);
-                pt.setY(height());
-                p.drawLine(pt.x(), 0, pt.x(), height());
-                p.drawText(pt, QDateTime::fromTime_t(current.x()).toString());
-                qDebug() << QDateTime::fromTime_t(current.x()).toString();
-            }
-            break;
-        }
-    }
-    }
-
-    fit();
-    QGraphicsView::paintEvent(evt);
+QGraphicsView *RRDWidget::overlay() const
+{
+    return d_ptr->overlay;
 }
 
 void RRDWidget::mouseDoubleClickEvent(QMouseEvent *evt)
 {
+    QGraphicsView::mouseDoubleClickEvent(evt);
     uint delta;
     QPointF pos = mapToScene(evt->pos());
     QRectF view(mapToScene(0, 0), mapToScene(width(), height()));
@@ -206,28 +192,5 @@ void RRDWidget::mouseReleaseEvent(QMouseEvent *evt)
 {
     QGraphicsView::mouseReleaseEvent(evt);
     viewport()->setCursor(Qt::CrossCursor);
-}
-
-void RRDWidget::mouseMoveEvent(QMouseEvent *evt)
-{
-    d_ptr->pos->setText(QString("%1 %2").arg(evt->x()).arg(evt->y()));
-
-    QGraphicsRectItem *rect = static_cast<QGraphicsRectItem*>(d_ptr->pos->parentItem());
-    QRectF bound = d_ptr->pos->boundingRect();
-    bound.adjust(-2, -2, 2, 2);
-    bound.moveBottomRight(mapToScene(width(), height()));
-    d_ptr->pos->setY(bound.height());
-    qDebug() << bound;
-    rect->setRect(bound);
-
-    QGraphicsView::mouseMoveEvent(evt);
-}
-
-void RRDWidget::fit()
-{
-//    fitInView(-verticalScrollBar()->, 0, range(), height());
-    /*resetTransform();
-    scale((qreal) width() / (d_ptr->end.toTime_t() - d_ptr->start.toTime_t()),
-            1);*/
 }
 

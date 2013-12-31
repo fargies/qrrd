@@ -5,10 +5,11 @@ set(QRRD_SRCS
     RRDFile.cpp
     RRDPlotter.cpp
     RRDWidget.cpp
+    RRDGrid.cpp
     )
 
 set(QRRD_HEADERS
-
+    RRDGrid.hpp
     )
 
 set(QRRD_PUBHDRS
