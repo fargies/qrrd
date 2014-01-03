@@ -29,23 +29,53 @@
 #include <QGraphicsScene>
 #include <QMouseEvent>
 #include <QGraphicsSimpleTextItem>
+#include <QGraphicsWidget>
+#include <QGraphicsGridLayout>
 #include <QDebug>
 
 #include "RRDWidget.hpp"
 #include "RRDGrid.hpp"
+#include "RRDGraphItem.hpp"
 
+class Widget : public QGraphicsWidget
+{
+public:
+    Widget(const QColor &color, const QColor &textColor, const QString &caption,
+           QGraphicsItem *parent = 0)
+        : QGraphicsWidget(parent), caption(caption), color(color), textColor(textColor)
+    {
+    }
+
+    void paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWidget * = 0)
+    {
+        QFont font;
+        font.setPixelSize(0.75 * qMin(boundingRect().width(), boundingRect().height()));
+
+        painter->fillRect(boundingRect(), color);
+        painter->save();
+        painter->setFont(font);
+        painter->setPen(textColor);
+        painter->drawText(boundingRect(), Qt::AlignCenter, caption);
+        painter->restore();
+    }
+
+private:
+    QString caption;
+    QColor color;
+    QColor textColor;
+};
 struct RRDWidgetPrivate
 {
     RRDWidgetPrivate() :
-        grid(0),
-        overlay(0)
+        grid(0)
     {}
 
     QDateTime start;
     QDateTime end;
     QList<RRDPlotter> rrd;
     RRDGrid *grid;
-    QGraphicsView *overlay;
+    QGraphicsWidget *main;
+    RRDGraphItem *graph;
 };
 
 RRDWidget::RRDWidget(QWidget *parent) :
@@ -56,18 +86,27 @@ RRDWidget::RRDWidget(QWidget *parent) :
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setScene(new QGraphicsScene(this));
-    viewport()->setCursor(Qt::CrossCursor);
-    setViewportMargins(50,50,50,50);
 
-    d_ptr->grid = new RRDGrid(this);
-    d_ptr->overlay = new QGraphicsView(this);
-    d_ptr->overlay->setScene(new QGraphicsScene(d_ptr->overlay));
-    d_ptr->overlay->setAcceptDrops();
+    d_ptr->main = new QGraphicsWidget();
+    scene()->addItem(d_ptr->main);
+    d_ptr->main->setGeometry(window()->rect());
+
+    QGraphicsGridLayout *layout = new QGraphicsGridLayout(d_ptr->main);
+    d_ptr->main->setLayout(layout);
+
+    layout->addItem(new Widget(Qt::black, Qt::white, "pwet", d_ptr->main), 1, 1, 1, 3);
+    layout->addItem(new Widget(Qt::black, Qt::white, "pwet", d_ptr->main), 2, 1);
+    layout->addItem(new Widget(Qt::black, Qt::white, "pwet", d_ptr->main), 2, 3);
+    layout->addItem(new Widget(Qt::black, Qt::white, "pwet", d_ptr->main), 3, 1, 1, 3);
+
+    d_ptr->graph = new RRDGraphItem(d_ptr->main);
+    layout->addItem(d_ptr->graph, 2, 2);
+
+    d_ptr->grid = new RRDGrid(this, d_ptr->main);
 }
 
 RRDWidget::~RRDWidget()
 {
-    delete d_ptr->grid;
 }
 
 QDateTime RRDWidget::start() const
@@ -99,7 +138,7 @@ int RRDWidget::addSource(const RRDFile &rrd)
     updatePaths();
 }
 
-RRDFile RRDWidget::source(int idx)
+RRDFile RRDWidget::source(int idx) const
 {
     return d_ptr->rrd.value(idx).rrd();
 }
@@ -107,6 +146,11 @@ RRDFile RRDWidget::source(int idx)
 QList<RRDPlotter> RRDWidget::sources() const
 {
     return d_ptr->rrd;
+}
+
+RRDGraphItem *RRDWidget::graphItem() const
+{
+    return d_ptr->graph;
 }
 
 void RRDWidget::setStart(const QDateTime &start)
@@ -138,59 +182,14 @@ void RRDWidget::updatePaths()
         for (int i = 0; i < it->dsNames().size(); ++i)
         {
             /* FIXME: do something with the pointer ? */
-            scene()->addPath(it->path(i), QPen(Qt::black), QBrush(Qt::yellow));//it->pen(i), it->brush(i));
+            d_ptr->graph->addPath(it->path(i));
         }
     }
-    fitInView(0, 0, range(), height());
     update();
-    overlay()->scene()->addRect(rect(), QPen(Qt::yellow), QBrush(Qt::yellow, Qt::SolidPattern));
 }
 
-void RRDWidget::paintEvent(QPaintEvent *event)
+void RRDWidget::resizeEvent(QResizeEvent * /*event*/)
 {
-    QPainter p(this);
-    QGraphicsView::paintEvent(event);
-    if (d_ptr->overlay)
-        d_ptr->overlay->render(&p, rect());
-}
-
-QGraphicsView *RRDWidget::overlay() const
-{
-    return d_ptr->overlay;
-}
-
-void RRDWidget::mouseDoubleClickEvent(QMouseEvent *evt)
-{
-    QGraphicsView::mouseDoubleClickEvent(evt);
-    uint delta;
-    QPointF pos = mapToScene(evt->pos());
-    QRectF view(mapToScene(0, 0), mapToScene(width(), height()));
-
-    switch (evt->button())
-    {
-        case Qt::LeftButton:
-            {
-                view.setWidth(view.width() / 2);
-                view.setHeight(view.height() / 2);
-                view.moveCenter(pos);
-                fitInView(view);
-            }
-            break;
-        case Qt::RightButton:
-            {
-                view.setWidth(view.width() * 2);
-                view.setHeight(view.height() * 2);
-                view.moveCenter(pos);
-                fitInView(view);
-            }
-            break;
-        default: break;
-    }
-}
-
-void RRDWidget::mouseReleaseEvent(QMouseEvent *evt)
-{
-    QGraphicsView::mouseReleaseEvent(evt);
-    viewport()->setCursor(Qt::CrossCursor);
+    fitInView(d_ptr->main);
 }
 

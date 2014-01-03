@@ -5,41 +5,44 @@
 #include <math.h>
 
 #include "RRDGrid.hpp"
+#include "RRDGraphItem.hpp"
+
+#define GRID_MAX 100
 
 class RRDGridPrivate
 {
 public:
-    RRDGridPrivate()
+    RRDGridPrivate(RRDWidget *rrd) :
+        rrd(rrd)
     {}
     ~RRDGridPrivate()
     {
-        if (!horizontal.isEmpty())
-            delete horizontal[0];
-        if (!vertical.isEmpty())
-            delete vertical[0];
     }
 
     QList<QGraphicsLineItem *> horizontal;
     QList<QGraphicsLineItem *> vertical;
-    QRectF maxBound;
-    QRectF view;
+    RRDWidget *rrd;
+    QRectF view; /* visible part of the graph in it's local coordinates */
     QPointF step;
 };
 
 typedef QList<QGraphicsLineItem *> LineList;
 
-RRDGrid::RRDGrid(RRDWidget *parent) :
-    QObject(parent),
-    d_ptr(new RRDGridPrivate)
+RRDGrid::RRDGrid(RRDWidget *w, QGraphicsItem *parent) :
+    QGraphicsWidget(parent),
+    d_ptr(new RRDGridPrivate(w))
 {
-    connect(parent->horizontalScrollBar(), SIGNAL(valueChanged(int)),
-            this, SLOT(horizontalPosChanged()));
-    connect(parent->verticalScrollBar(), SIGNAL(valueChanged(int)),
-            this, SLOT(verticalPosChanged()));
-    connect(parent->horizontalScrollBar(), SIGNAL(rangeChanged(int,int)),
-            this, SLOT(horizontalRangeChanged()));
-    connect(parent->verticalScrollBar(), SIGNAL(rangeChanged(int,int)),
-            this, SLOT(verticalRangeChanged()));
+    setGeometry(w->graphItem()->geometry());
+    QGraphicsWidget *graph = w->graphItem()->pathGroup();
+
+    connect(graph, SIGNAL(zoomChanged()),
+            this, SLOT(onScaleChanged()));
+    connect(graph, SIGNAL(xChanged()),
+            this, SLOT(onHorizontalPosChanged()));
+    connect(graph, SIGNAL(yChanged()),
+            this, SLOT(onVerticalPosChanged()));
+    connect(w->graphItem(), SIGNAL(geometryChanged()),
+            this, SLOT(onGeometryChanged()));
 
     prepare();
 }
@@ -120,11 +123,12 @@ void RRDWidget::updateGridSpacing()
 
 #define GRID_PSZ 20
 
-QPointF RRDGrid::gridStep(const QRectF &view) const
+QPointF RRDGrid::gridStep() const
 {
-    QRectF rect = QRectF(view.topLeft(), widget()->mapToScene(GRID_PSZ, GRID_PSZ)).normalized();
+    /* compute a GRID_PSZxGRID_PSZ rect in Graph coordinates */
+    QRectF rect = pathGroup()->mapFromParent(0, 0, GRID_PSZ, GRID_PSZ).boundingRect();
     QPointF step;
-    qDebug() << rect.height() << log10(rect.height());
+
     int exp = log10(rect.height());
     step.setY(qPow(10, exp));
     qreal y = rect.height() / step.y();
@@ -140,25 +144,18 @@ QPointF RRDGrid::gridStep(const QRectF &view) const
         step.setX(step.x() * 5);
     else if (x >= 2)
         step.setX(step.x() * 2);
-    qDebug() << step;
-    return step;
-}
 
-QRectF RRDGrid::sceneView() const
-{
-    RRDWidget *w = widget();
-    return QRectF(w->mapToScene(0, 0),
-                  w->mapToScene(w->viewport()->rect().bottomRight())).normalized();
+    return step;
 }
 
 void RRDGrid::prepare()
 {
-    QRectF view = sceneView();
+    QRectF view = widget()->graphItem()->pathGroupBoundingRect();
 
-    if (view == d_ptr->view)
+    if (!view.isValid())// || view == d_ptr->view)
         return;
 
-    QPointF step = gridStep(view);
+    QPointF step = gridStep();
 
     updateHorizontalGrid(step.y(), view);
     updateVerticalGrid(step.x(), view);
@@ -169,24 +166,22 @@ void RRDGrid::prepare()
 
 void RRDGrid::updateVerticalGrid(qreal step, const QRectF &view)
 {
+    RRDPathGroup *group = pathGroup();
     qreal x = view.left();
     x -= (fmod(x, step));
 
     if (d_ptr->vertical.isEmpty())
-        d_ptr->vertical.append(
-                    new QGraphicsLineItem(0, d_ptr->maxBound.top(),
-                                          0, d_ptr->maxBound.bottom(), 0,
-                                          widget()->scene()));
-    d_ptr->vertical[0]->setX(x);
+        addVerticalLine();
+
+    d_ptr->vertical[0]->setX(group->mapToParent(x, 0).x());
     d_ptr->vertical[0]->setPen(QPen(Qt::green)); /* TODO: REMOVE */
 
-    x = step;
     int idx = 1;
-    for (; x < view.width(); x += step)
+    for (x += step; x < view.right() && idx < GRID_MAX; x += step)
     {
         if (idx >= d_ptr->vertical.size())
             addVerticalLine();
-        d_ptr->vertical[idx++]->setX(x);
+        d_ptr->vertical[idx++]->setX(group->mapToParent(x, 0).x());
     }
 
     while (idx < d_ptr->vertical.size())
@@ -195,24 +190,22 @@ void RRDGrid::updateVerticalGrid(qreal step, const QRectF &view)
 
 void RRDGrid::updateHorizontalGrid(qreal step, const QRectF &view)
 {
+    RRDPathGroup *group = pathGroup();
     qreal y = view.top();
     y -= (fmod(y, step));
 
     if (d_ptr->horizontal.isEmpty())
-        d_ptr->horizontal.append(
-                    new QGraphicsLineItem(d_ptr->maxBound.left(), 0,
-                                          d_ptr->maxBound.right(), 0, 0,
-                                          widget()->scene()));
-    d_ptr->horizontal[0]->setY(y);
+        addHorizontalLine();
+
+    d_ptr->horizontal[0]->setY(group->mapToParent(0, y).y());
     d_ptr->horizontal[0]->setPen(QPen(Qt::green)); /* TODO: REMOVE */
 
-    y = step;
     int idx = 1;
-    for (; y < view.height(); y += step)
+    for (y += step; y < view.bottom() && idx < GRID_MAX; y += step)
     {
         if (idx >= d_ptr->horizontal.size())
             addHorizontalLine();
-        d_ptr->horizontal[idx++]->setY(y);
+        d_ptr->horizontal[idx++]->setY(group->mapToParent(0, y).y());
     }
 
     while (idx < d_ptr->horizontal.size())
@@ -221,10 +214,14 @@ void RRDGrid::updateHorizontalGrid(qreal step, const QRectF &view)
 
 QGraphicsLineItem *RRDGrid::addHorizontalLine()
 {
+    QRectF gridBound(gridBoundingRect());
+    QGraphicsItem *parent = d_ptr->horizontal.isEmpty() ?
+                static_cast<QGraphicsItem*>(this) :
+                static_cast<QGraphicsItem*>(d_ptr->horizontal[0]);
     d_ptr->horizontal.append(
-                new QGraphicsLineItem(d_ptr->maxBound.left(), 0,
-                                      d_ptr->maxBound.right(), 0,
-                                      d_ptr->horizontal[0],
+                new QGraphicsLineItem(gridBound.left(), 0,
+                                      gridBound.right(), 0,
+                                      this,
                                       widget()->scene()));
     QGraphicsLineItem *item(d_ptr->horizontal.last());
     item->setPen(QPen(Qt::DotLine));
@@ -233,71 +230,88 @@ QGraphicsLineItem *RRDGrid::addHorizontalLine()
 
 QGraphicsLineItem *RRDGrid::addVerticalLine()
 {
+    QRectF gridBound(gridBoundingRect());
+    QGraphicsItem *parent = d_ptr->vertical.isEmpty() ?
+                static_cast<QGraphicsItem*>(this) :
+                static_cast<QGraphicsItem*>(d_ptr->vertical[0]);
     d_ptr->vertical.append(
-                new QGraphicsLineItem(0, d_ptr->maxBound.top(),
-                                      0, d_ptr->maxBound.bottom(),
-                                      d_ptr->vertical[0],
+                new QGraphicsLineItem(0, gridBound.top(),
+                                      0, gridBound.bottom(),
+                                      this,
                                       widget()->scene()));
     QGraphicsLineItem *item(d_ptr->vertical.last());
     item->setPen(QPen(Qt::DotLine));
     return item;
 }
 
-void RRDGrid::verticalRangeChanged()
+QRectF RRDGrid::gridBoundingRect()
 {
-    QRectF bound = widget()->sceneRect();
-    if (bound.top() != d_ptr->maxBound.top() ||
-            bound.bottom() != d_ptr->maxBound.bottom())
-    {
-        d_ptr->maxBound.setTop(bound.top());
-        d_ptr->maxBound.setBottom(bound.bottom());
+    return boundingRect().adjusted(-10, -10, 10, 10);
+}
 
-        LineList::iterator it = d_ptr->vertical.begin();
-        for (; it != d_ptr->vertical.end(); ++it)
-            (*it)->setLine(0, bound.top(), 0, bound.bottom());
-    }
+void RRDGrid::onVerticalGeometryChanged()
+{
+    QRectF bound(gridBoundingRect());
+
+
+    LineList::iterator it = d_ptr->vertical.begin();
+    for (; it != d_ptr->vertical.end(); ++it)
+        (*it)->setLine(0, bound.top(), 0, bound.bottom());
+}
+
+void RRDGrid::onHorizontalGeometryChanged()
+{
+    QRectF bound(gridBoundingRect());
+
+    LineList::iterator it = d_ptr->horizontal.begin();
+    for (; it != d_ptr->horizontal.end(); ++it)
+        (*it)->setLine(bound.left(), 0, bound.right(), 0);
+
+}
+
+void RRDGrid::onVerticalPosChanged()
+{
+    QRectF view = widget()->graphItem()->pathGroupBoundingRect();
+
+    updateHorizontalGrid(d_ptr->step.y(), view);
+}
+
+void RRDGrid::onHorizontalPosChanged()
+{
+    QRectF view = widget()->graphItem()->pathGroupBoundingRect();
+
+    updateVerticalGrid(d_ptr->step.x(), view);
+}
+
+void RRDGrid::onGeometryChanged()
+{
+    QRectF oldGeom(geometry());
+    QRectF geom(widget()->graphItem()->geometry());
+
+    setGeometry(geom);
+
+    if (oldGeom.top() != geom.top() ||
+            oldGeom.bottom() != geom.bottom())
+        onVerticalGeometryChanged();
+
+    if (oldGeom.left() != geom.left() ||
+            oldGeom.right() != geom.right())
+        onHorizontalGeometryChanged();
+
     prepare();
 }
 
-void RRDGrid::horizontalRangeChanged()
+void RRDGrid::onScaleChanged()
 {
-    QRectF bound = widget()->sceneRect();
-    if (bound.left() != d_ptr->maxBound.left() ||
-            bound.right() != d_ptr->maxBound.right())
-    {
-        d_ptr->maxBound.setLeft(bound.left());
-        d_ptr->maxBound.setRight(bound.right());
-
-        LineList::iterator it = d_ptr->horizontal.begin();
-        for (; it != d_ptr->horizontal.end(); ++it)
-            (*it)->setLine(bound.left(), 0, bound.right(), 0);
-    }
     prepare();
-}
-
-void RRDGrid::verticalPosChanged()
-{
-    d_ptr->view =sceneView();
-
-    qreal y = d_ptr->view.top();
-    y -= (fmod(y, d_ptr->step.y()));
-
-    if (!d_ptr->horizontal.isEmpty())
-        d_ptr->horizontal[0]->setY(y);
-}
-
-void RRDGrid::horizontalPosChanged()
-{
-    d_ptr->view = sceneView();
-
-    qreal x = d_ptr->view.left();
-    x -= (fmod(x, d_ptr->step.x()));
-
-    if (!d_ptr->vertical.isEmpty())
-        d_ptr->vertical[0]->setX(x);
 }
 
 RRDWidget *RRDGrid::widget() const
 {
-    return static_cast<RRDWidget *>(parent());
+    return d_ptr->rrd;
+}
+
+RRDPathGroup *RRDGrid::pathGroup() const
+{
+    return widget()->graphItem()->pathGroup();
 }

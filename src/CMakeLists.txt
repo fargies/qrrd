@@ -6,6 +6,7 @@ set(QRRD_SRCS
     RRDPlotter.cpp
     RRDWidget.cpp
     RRDGrid.cpp
+    RRDGraphItem.cpp
     )
 
 set(QRRD_HEADERS
@@ -18,6 +19,7 @@ set(QRRD_PUBHDRS
     RRDFile.hpp
     RRDPlotter.hpp
     RRDWidget.hpp
+    RRDGraphItem.hpp
     )
 
 include(${QT_USE_FILE})

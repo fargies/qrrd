@@ -34,6 +34,7 @@
 #include "RRDPlotter.hpp"
 
 class RRDWidgetPrivate;
+class RRDGraphItem;
 
 class RRDWidget : public QGraphicsView
 {
@@ -50,10 +51,15 @@ public:
     uint range() const;
 
     int addSource(const RRDFile &rrd);
-    RRDFile source(int idx);
+    RRDFile source(int idx) const;
     QList<RRDPlotter> sources() const;
 
-    QGraphicsView *overlay() const;
+    /**
+     * @brief return the internal graph item
+     * @details for internal use only (RRDGrid)
+     * @return the internal RRDGraphItem
+     */
+    RRDGraphItem *graphItem() const;
 
 public slots:
     void setStart(const QDateTime &start);
@@ -66,9 +72,7 @@ signals:
 protected:
     void updatePaths();
 
-    void mouseDoubleClickEvent(QMouseEvent * evt);
-    void mouseReleaseEvent(QMouseEvent *evt);
-    void paintEvent(QPaintEvent *event);
+    void resizeEvent(QResizeEvent *event);
 
     QScopedPointer<RRDWidgetPrivate> d_ptr;
 };
