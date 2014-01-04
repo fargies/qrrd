@@ -78,13 +78,17 @@ public:
     void stopAnimation();
     void fit();
     void setZoom(qreal x, qreal y);
+	int addPath(const QPainterPath &path);
 
 signals:
     void zoomChanged();
 
 protected:
+	void updateTransform();
+
     QPropertyAnimation *m_anim;
     QSizeF m_zoom;
+	QPointF m_trans;
 };
 
 #endif

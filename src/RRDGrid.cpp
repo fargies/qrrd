@@ -3,7 +3,6 @@
  *   - add intermediate lines with only a small solid beggning/end line
  */
 
-#include <QScrollBar>
 #include <QDebug>
 #include <QtCore/qmath.h>
 /* FIXME: will only work on posix like systems (for log10 and fmod) */
@@ -29,9 +28,9 @@ public:
     RRDWidget *rrd;
     QRectF view; /* visible part of the graph in it's local coordinates */
     QPointF step;
+    QGraphicsRectItem *border;
     QGraphicsSimpleTextItem *vertOrigin;
     QGraphicsSimpleTextItem *horizOrigin;
-    QMargins margins;
 };
 
 typedef QList<RRDGridLine *> LineList;
@@ -41,6 +40,8 @@ RRDGrid::RRDGrid(RRDWidget *w, QGraphicsWidget *parent) :
     d_ptr(new RRDGridPrivate(w))
 {
     QGraphicsWidget *graph = w->graphItem()->pathGroup();
+
+    d_ptr->border = new QGraphicsRectItem(this);
 
     connect(graph, SIGNAL(zoomChanged()),
             this, SLOT(onScaleChanged()));
@@ -180,20 +181,17 @@ void RRDGrid::updateVerticalGrid(qreal step, const QRectF &view)
 {
     RRDPathGroup *group = pathGroup();
     qreal x = view.left();
-    x -= (fmod(x, step));
+    x -= (fmod(x, step)) - step;
 
-    if (d_ptr->vertical.isEmpty())
-        addVerticalLine();
-
-    d_ptr->vertical[0]->setX(group->mapToParent(x, 0).x());
-    d_ptr->vertical[0]->setPen(QPen(Qt::green)); /* TODO: REMOVE */
-
-    int idx = 1;
-    for (x += step; x < view.right() && idx < GRID_MAX; x += step)
+    int idx = 0;
+    for (; x < view.right() && idx < GRID_MAX; x += step)
     {
-        if (idx >= d_ptr->vertical.size())
-            addVerticalLine();
-        d_ptr->vertical[idx++]->setX(group->mapToParent(x, 0).x());
+        RRDGridLine *line = (idx >= d_ptr->vertical.size()) ?
+            addVerticalLine() :
+            d_ptr->vertical[idx];
+        line->setX(group->mapToParent(x, 0).x());
+        line->setLegendText(QString("pwet?"));
+        ++idx;
     }
 
     while (idx < d_ptr->vertical.size())
@@ -204,22 +202,20 @@ void RRDGrid::updateHorizontalGrid(qreal step, const QRectF &view)
 {
     RRDPathGroup *group = pathGroup();
     qreal y = view.top();
-    y -= (fmod(y, step));
+    y -= (fmod(y, step)) - step;
 
     if (d_ptr->horizontal.isEmpty())
         addHorizontalLine();
 
-    d_ptr->horizontal[0]->setY(group->mapToParent(0, y).y());
-    d_ptr->horizontal[0]->setPen(QPen(Qt::green)); /* TODO: REMOVE */
-
-    int idx = 1;
-    for (y += step; y < view.bottom() && idx < GRID_MAX; y += step)
+    int idx = 0;
+    for (; y < view.bottom() && idx < GRID_MAX; y += step)
     {
         RRDGridLine *line = (idx >= d_ptr->horizontal.size()) ?
-                    addHorizontalLine() :
-                    d_ptr->horizontal[idx++];
+            addHorizontalLine() :
+            d_ptr->horizontal[idx];
         line->setY(group->mapToParent(0, y).y());
-        line->setLegendText(QString("test %1").arg(idx));
+        line->setLegendText(QString::number(-y));
+        ++idx;
     }
 
     while (idx < d_ptr->horizontal.size())
@@ -289,6 +285,7 @@ void RRDGrid::onGeometryChanged()
     QRectF geom(widget()->graphItem()->geometry());
 
     setGeometry(geom);
+    d_ptr->border->setRect(0, 0, geom.width(), geom.height());
 
     if (oldGeom.top() != geom.top() ||
             oldGeom.bottom() != geom.bottom())
@@ -315,7 +312,6 @@ RRDPathGroup *RRDGrid::pathGroup() const
 {
     return widget()->graphItem()->pathGroup();
 }
-
 
 RRDGridLine::RRDGridLine(
         Qt::Orientation orientation,

@@ -150,12 +150,6 @@ void RRDPlotter::prepare(
         d_ptr->paths[i].path.lineTo(cur, 0);
         if (startTrans)
             d_ptr->paths[i].path.translate(startTrans, 0);
-
-/*        painter.setPen(Qt::black);
-
-        painter.scale((qreal) painter.window().width() / delta, 1);
-        painter.setBrush(QBrush(Qt::yellow));
-        painter.drawPath(d_ptr->paths[i]);*/
     }
 }
 

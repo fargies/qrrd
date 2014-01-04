@@ -95,12 +95,10 @@ void RRDGraphItem::fit(const QRectF &g)
 
 int RRDGraphItem::addPath(const QPainterPath &path)
 {
-    QGraphicsPathItem *item = new QGraphicsPathItem(path, d_ptr->group);
-    item->setPen(QPen(Qt::black));
-    item->setBrush(Qt::yellow);
-    item->translate(0, -item->boundingRect().y());
+    int ret = d_ptr->group->addPath(path);
+
     fit();
-    return d_ptr->group->childItems().size() - 1;
+    return ret;
 }
 
 void RRDGraphItem::removePath(int idx)
@@ -221,12 +219,32 @@ void RRDPathGroup::setZoom(qreal x, qreal y)
 {
     if (!m_zoom.isValid() || m_zoom.width() != x || m_zoom.height() != y)
     {
-        QTransform scale;
-        scale.scale(x, y);
-        stopAnimation();
-        setTransform(scale);
         m_zoom = QSizeF(x, y);
+        updateTransform();
         emit zoomChanged();
     }
+}
+
+int RRDPathGroup::addPath(const QPainterPath &path)
+{
+    QGraphicsPathItem *item = new QGraphicsPathItem(path, this);
+    item->setPen(QPen(Qt::black));
+    item->setBrush(Qt::yellow);
+
+    m_trans = -childrenBoundingRect().topLeft();
+    updateTransform();
+
+    return childItems().size() - 1;
+}
+
+void RRDPathGroup::updateTransform()
+{
+    QTransform trans;
+    if (m_zoom.isValid())
+        trans.scale(m_zoom.width(), m_zoom.height());
+    if (!m_trans.isNull())
+        trans.translate(m_trans.x(), m_trans.y());
+    stopAnimation();
+    setTransform(trans);
 }
 

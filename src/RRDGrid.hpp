@@ -10,6 +10,8 @@ class RRDGridPrivate;
 class RRDPathGroup;
 class RRDGridLine;
 
+class QGraphicsAnchorLayout;
+
 class RRDGrid : public QGraphicsWidget
 {
     Q_OBJECT
