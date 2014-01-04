@@ -37,33 +37,6 @@
 #include "RRDGrid.hpp"
 #include "RRDGraphItem.hpp"
 
-class Widget : public QGraphicsWidget
-{
-public:
-    Widget(const QColor &color, const QColor &textColor, const QString &caption,
-           QGraphicsItem *parent = 0)
-        : QGraphicsWidget(parent), caption(caption), color(color), textColor(textColor)
-    {
-    }
-
-    void paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWidget * = 0)
-    {
-        QFont font;
-        font.setPixelSize(0.75 * qMin(boundingRect().width(), boundingRect().height()));
-
-        painter->fillRect(boundingRect(), color);
-        painter->save();
-        painter->setFont(font);
-        painter->setPen(textColor);
-        painter->drawText(boundingRect(), Qt::AlignCenter, caption);
-        painter->restore();
-    }
-
-private:
-    QString caption;
-    QColor color;
-    QColor textColor;
-};
 struct RRDWidgetPrivate
 {
     RRDWidgetPrivate() :
@@ -88,19 +61,15 @@ RRDWidget::RRDWidget(QWidget *parent) :
     setScene(new QGraphicsScene(this));
 
     d_ptr->main = new QGraphicsWidget();
+    d_ptr->main->setContentsMargins(20, 20, 20, 20);
     scene()->addItem(d_ptr->main);
     d_ptr->main->setGeometry(window()->rect());
 
     QGraphicsGridLayout *layout = new QGraphicsGridLayout(d_ptr->main);
     d_ptr->main->setLayout(layout);
 
-    layout->addItem(new Widget(Qt::black, Qt::white, "pwet", d_ptr->main), 1, 1, 1, 3);
-    layout->addItem(new Widget(Qt::black, Qt::white, "pwet", d_ptr->main), 2, 1);
-    layout->addItem(new Widget(Qt::black, Qt::white, "pwet", d_ptr->main), 2, 3);
-    layout->addItem(new Widget(Qt::black, Qt::white, "pwet", d_ptr->main), 3, 1, 1, 3);
-
     d_ptr->graph = new RRDGraphItem(d_ptr->main);
-    layout->addItem(d_ptr->graph, 2, 2);
+    layout->addItem(d_ptr->graph, 1, 1);
 
     d_ptr->grid = new RRDGrid(this, d_ptr->main);
 }

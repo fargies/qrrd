@@ -8,12 +8,13 @@
 
 class RRDGridPrivate;
 class RRDPathGroup;
+class RRDGridLine;
 
 class RRDGrid : public QGraphicsWidget
 {
     Q_OBJECT
 public:
-    explicit RRDGrid(RRDWidget *widget, QGraphicsItem *parent = 0);
+    explicit RRDGrid(RRDWidget *widget, QGraphicsWidget *parent = 0);
     ~RRDGrid();
 
     void prepare();
@@ -35,13 +36,8 @@ protected:
     void updateHorizontalGrid(qreal step, const QRectF &view);
     void updateVerticalGrid(qreal step, const QRectF &view);
 
-    QGraphicsLineItem *addVerticalLine();
-    QGraphicsLineItem *addHorizontalLine();
-
-    /**
-     * @brief the grid's virtual bounding rect
-     */
-    QRectF gridBoundingRect();
+    RRDGridLine *addVerticalLine();
+    RRDGridLine *addHorizontalLine();
 
     /**
      * @brief return the grid steps to use in graph's coordinates
@@ -51,6 +47,27 @@ protected:
     QRectF sceneView() const;
 
     QScopedPointer<RRDGridPrivate> d_ptr;
+};
+
+class RRDGridLine : public QGraphicsLineItem
+{
+public:
+    RRDGridLine(Qt::Orientation orientation,
+                qreal p1, qreal p2,
+                QGraphicsItem *parent = 0,
+                QGraphicsScene *scene = 0);
+
+    inline Qt::Orientation orientation() const
+    { return m_orientation; }
+
+    inline QGraphicsSimpleTextItem *legend() const
+    { return m_legend; }
+
+    void setLegendText(const QString &text);
+
+protected:
+    Qt::Orientation m_orientation;
+    QGraphicsSimpleTextItem *m_legend;
 };
 
 #endif // RRDGRID_HPP

@@ -1,3 +1,8 @@
+/* TODO:
+ *   - add small solid line at beggining/end of each line
+ *   - add intermediate lines with only a small solid beggning/end line
+ */
+
 #include <QScrollBar>
 #include <QDebug>
 #include <QtCore/qmath.h>
@@ -19,20 +24,22 @@ public:
     {
     }
 
-    QList<QGraphicsLineItem *> horizontal;
-    QList<QGraphicsLineItem *> vertical;
+    QList<RRDGridLine *> horizontal;
+    QList<RRDGridLine *> vertical;
     RRDWidget *rrd;
     QRectF view; /* visible part of the graph in it's local coordinates */
     QPointF step;
+    QGraphicsSimpleTextItem *vertOrigin;
+    QGraphicsSimpleTextItem *horizOrigin;
+    QMargins margins;
 };
 
-typedef QList<QGraphicsLineItem *> LineList;
+typedef QList<RRDGridLine *> LineList;
 
-RRDGrid::RRDGrid(RRDWidget *w, QGraphicsItem *parent) :
+RRDGrid::RRDGrid(RRDWidget *w, QGraphicsWidget *parent) :
     QGraphicsWidget(parent),
     d_ptr(new RRDGridPrivate(w))
 {
-    setGeometry(w->graphItem()->geometry());
     QGraphicsWidget *graph = w->graphItem()->pathGroup();
 
     connect(graph, SIGNAL(zoomChanged()),
@@ -44,7 +51,12 @@ RRDGrid::RRDGrid(RRDWidget *w, QGraphicsItem *parent) :
     connect(w->graphItem(), SIGNAL(geometryChanged()),
             this, SLOT(onGeometryChanged()));
 
-    prepare();
+    onGeometryChanged();
+    QFontMetrics metrics(this->font());
+    QSize marg(metrics.width("W") * 8,
+               metrics.height() * 3);
+    parent->setContentsMargins(marg.width(), marg.height(),
+                               marg.width(), marg.height());
 }
 
 RRDGrid::~RRDGrid()
@@ -203,55 +215,43 @@ void RRDGrid::updateHorizontalGrid(qreal step, const QRectF &view)
     int idx = 1;
     for (y += step; y < view.bottom() && idx < GRID_MAX; y += step)
     {
-        if (idx >= d_ptr->horizontal.size())
-            addHorizontalLine();
-        d_ptr->horizontal[idx++]->setY(group->mapToParent(0, y).y());
+        RRDGridLine *line = (idx >= d_ptr->horizontal.size()) ?
+                    addHorizontalLine() :
+                    d_ptr->horizontal[idx++];
+        line->setY(group->mapToParent(0, y).y());
+        line->setLegendText(QString("test %1").arg(idx));
     }
 
     while (idx < d_ptr->horizontal.size())
         delete d_ptr->horizontal.takeLast();
+
+    //setVerticalOriginLegend(view);
+    //d_ptr->vertOrigin->setText(QString::number(view.bottom()));
 }
 
-QGraphicsLineItem *RRDGrid::addHorizontalLine()
+RRDGridLine *RRDGrid::addHorizontalLine()
 {
-    QRectF gridBound(gridBoundingRect());
-    QGraphicsItem *parent = d_ptr->horizontal.isEmpty() ?
-                static_cast<QGraphicsItem*>(this) :
-                static_cast<QGraphicsItem*>(d_ptr->horizontal[0]);
+    QRectF gridBound(boundingRect());
     d_ptr->horizontal.append(
-                new QGraphicsLineItem(gridBound.left(), 0,
-                                      gridBound.right(), 0,
-                                      this,
-                                      widget()->scene()));
-    QGraphicsLineItem *item(d_ptr->horizontal.last());
-    item->setPen(QPen(Qt::DotLine));
-    return item;
+                new RRDGridLine(Qt::Horizontal,
+                                gridBound.left(), gridBound.right(),
+                                this, widget()->scene()));
+    return d_ptr->horizontal.last();
 }
 
-QGraphicsLineItem *RRDGrid::addVerticalLine()
+RRDGridLine *RRDGrid::addVerticalLine()
 {
-    QRectF gridBound(gridBoundingRect());
-    QGraphicsItem *parent = d_ptr->vertical.isEmpty() ?
-                static_cast<QGraphicsItem*>(this) :
-                static_cast<QGraphicsItem*>(d_ptr->vertical[0]);
+    QRectF gridBound(boundingRect());
     d_ptr->vertical.append(
-                new QGraphicsLineItem(0, gridBound.top(),
-                                      0, gridBound.bottom(),
-                                      this,
-                                      widget()->scene()));
-    QGraphicsLineItem *item(d_ptr->vertical.last());
-    item->setPen(QPen(Qt::DotLine));
-    return item;
-}
-
-QRectF RRDGrid::gridBoundingRect()
-{
-    return boundingRect().adjusted(-10, -10, 10, 10);
+                new RRDGridLine(Qt::Vertical,
+                                gridBound.top(), gridBound.bottom(),
+                                this, widget()->scene()));
+    return d_ptr->vertical.last();
 }
 
 void RRDGrid::onVerticalGeometryChanged()
 {
-    QRectF bound(gridBoundingRect());
+    QRectF bound(boundingRect());
 
 
     LineList::iterator it = d_ptr->vertical.begin();
@@ -261,7 +261,7 @@ void RRDGrid::onVerticalGeometryChanged()
 
 void RRDGrid::onHorizontalGeometryChanged()
 {
-    QRectF bound(gridBoundingRect());
+    QRectF bound(boundingRect());
 
     LineList::iterator it = d_ptr->horizontal.begin();
     for (; it != d_ptr->horizontal.end(); ++it)
@@ -314,4 +314,32 @@ RRDWidget *RRDGrid::widget() const
 RRDPathGroup *RRDGrid::pathGroup() const
 {
     return widget()->graphItem()->pathGroup();
+}
+
+
+RRDGridLine::RRDGridLine(
+        Qt::Orientation orientation,
+        qreal p1, qreal p2,
+        QGraphicsItem *parent,
+        QGraphicsScene *scene) :
+    QGraphicsLineItem(parent, scene),
+    m_orientation(orientation)
+{
+    if (m_orientation == Qt::Vertical)
+        setLine(0, p1, 0, p2);
+    else
+        setLine(p1, 0, p2, 0);
+    setPen(QPen(Qt::DotLine));
+    m_legend = new QGraphicsSimpleTextItem(this);
+}
+
+void RRDGridLine::setLegendText(const QString &text)
+{
+    m_legend->setText(text);
+    QRectF bound(m_legend->boundingRect());
+    if (m_orientation == Qt::Vertical)
+        m_legend->setPos(boundingRect().bottomRight() -
+                         QPointF(bound.center().x(), 2));
+    else
+        m_legend->setPos(-bound.right() - 2, -bound.center().y());
 }
