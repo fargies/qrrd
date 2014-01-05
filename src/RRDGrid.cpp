@@ -12,6 +12,17 @@
 #include "RRDGraphItem.hpp"
 
 #define GRID_MAX 100
+#define GRID_PSZ 40
+#define GRID_LABEL_MARGIN 2
+
+struct RRDGrid::Step
+{
+    uint timeStep; /* for x axis */
+    RRDGrid::TimeStep timeType;
+    qreal valueStep; /* for y axis */
+
+    void timeStepRound();
+};
 
 class RRDGridPrivate
 {
@@ -27,10 +38,10 @@ public:
     QList<RRDGridLine *> vertical;
     RRDWidget *rrd;
     QRectF view; /* visible part of the graph in it's local coordinates */
-    QPointF step;
     QGraphicsRectItem *border;
     QGraphicsSimpleTextItem *vertOrigin;
     QGraphicsSimpleTextItem *horizOrigin;
+    RRDGrid::Step step;
 };
 
 typedef QList<RRDGridLine *> LineList;
@@ -42,6 +53,8 @@ RRDGrid::RRDGrid(RRDWidget *w, QGraphicsWidget *parent) :
     QGraphicsWidget *graph = w->graphItem()->pathGroup();
 
     d_ptr->border = new QGraphicsRectItem(this);
+    d_ptr->vertOrigin = new QGraphicsSimpleTextItem(this);
+    d_ptr->horizOrigin = new QGraphicsSimpleTextItem(this);
 
     connect(graph, SIGNAL(zoomChanged()),
             this, SLOT(onScaleChanged()));
@@ -64,101 +77,145 @@ RRDGrid::~RRDGrid()
 {
 }
 
-/* FIXME implement timegrid
- *
- *    enum GridType
-    {
-        GRID_SEC,
-        GRID_MIN,
-        GRID_HOUR,
-        GRID_DAY,
-        GRID_MONTH,
-        GRID_YEAR
-    };
-uint RRDWidget::gridNext(GridType type, uint step, uint pos)
+void RRDGrid::Step::timeStepRound()
 {
-    switch (type)
-    {
-    case GRID_DAY: step *= 24;
-    case GRID_HOUR: step *= 60;
-    case GRID_MIN: step *= 60;
-    case GRID_SEC:
-        return  pos - (pos % step) + step;
-    case GRID_MONTH:
-        {
-            QDate curr(QDateTime::fromTime_t(pos).date());
-            if (curr.day() != 1)
-                curr = curr.addDays(- curr.day() + 1);
-            curr = curr.addMonths(step);
-            return QDateTime(curr).toTime_t();
-        }
-    }
+    if (timeStep >= 30)
+        timeStep = 30;
+    else if (timeStep >= 15)
+        timeStep = 15;
+    else if (timeStep >= 10)
+        timeStep = 10;
+    else if (timeStep >= 5)
+        timeStep = 5;
+    else
+        timeStep = (timeStep >= 2) ? 2 : 1;
+
+    if (timeType == RRDGrid::MonthStep && timeStep > 2)
+        timeStep = 6; /* but 1 2 6 is better for months */
 }
-*/
-/*
-void RRDWidget::updateGridSpacing()
-{
-    QPointF current = mapToScene(0, 0);
 
-    uint secs = mapToScene(50, 0).x() - current.x();
-    qDebug() << secs << " for 20 px";
-
-    if (secs < 60) * less than a minute -> secs grid *
-    {
-        type = GRID_SEC;
-    }
-    else if (secs < 60 * 60)
-    {
-        secs /= 60;
-        type = GRID_MIN;
-    }
-    else if (secs < 60 * 60 * 24)
-    {
-        secs /= 60 * 60;
-        type = GRID_HOUR;
-    }
-    else if (secs < 60 * 60 * 24 * 5)
-    {
-        secs /= 60 * 60 * 24;
-        type = GRID_DAY;
-    }
-    else
-    {
-        type = GRID_MONTH;
-        return 1;
-    }
-
-    if (secs >= 5)
-        return 5;
-    else
-        return (secs > 1) ? 2 : 1;
-}*/
-
-#define GRID_PSZ 20
-
-QPointF RRDGrid::gridStep() const
+void RRDGrid::gridStep(RRDGrid::Step &step) const
 {
     /* compute a GRID_PSZxGRID_PSZ rect in Graph coordinates */
     QRectF rect = pathGroup()->mapFromParent(0, 0, GRID_PSZ, GRID_PSZ).boundingRect();
-    QPointF step;
 
     int exp = log10(rect.height());
-    step.setY(qPow(10, exp));
-    qreal y = rect.height() / step.y();
+    step.valueStep = qPow(10, exp);
+    qreal y = rect.height() / step.valueStep;
     if (y >= 5)
-        step.setY(step.y() * 5);
+        step.valueStep *= 5;
     else if (y >= 2)
-        step.setY(step.y() * 2);
+        step.valueStep *= 2;
 
-    exp = log10(rect.width());
-    step.setX(pow(10, exp));
-    qreal x = rect.width() / step.x();
-    if (x >= 5)
-        step.setX(step.x() * 5);
-    else if (x >= 2)
-        step.setX(step.x() * 2);
+    step.timeStep = rect.width();
+    if (step.timeStep < 60) /* less than a minute -> secs grid */
+        step.timeType = SecStep;
+    else if (step.timeStep < 60 * 60)
+    {
+        step.timeStep /= 60;
+        step.timeType = MinStep;
+    }
+    else if (step.timeStep < 60 * 60 * 24)
+    {
+        step.timeStep /= 60 * 60;
+        step.timeType = HourStep;
+    }
+    else if (step.timeStep < 60 * 60 * 24 * 7)
+    {
+        /* will be bound to 1 2 5 by timeStepRound (< 7)*/
+        step.timeStep /= 60 * 60 * 24;
+        step.timeType = DayStep;
+    }
+    else if (step.timeStep < 60 * 60 * 24 * 30)
+    {
+        /* will be bound to 1 2 by timeStepRound (< 4) */
+        step.timeStep /= 60 * 60 * 24 * 7;
+        step.timeType = WeekStep;
+    }
+    else if (step.timeStep < 60 * 60 * 24 * 365)
+    {
+        step.timeType = MonthStep;
+        /* will be bound to 1 2 6 by timeStepRound (< 4) */
+        step.timeStep /= 60 * 60 * 24 * 30;
+    }
+    else
+    {
+        step.timeType = YearStep;
+        step.timeStep /= 60 * 60 * 24 * 365;
+    }
+    step.timeStepRound();
+}
 
-    return step;
+QDateTime RRDGrid::timeGridMod(
+        const QDateTime &dateTime,
+        const RRDGrid::Step &step) const
+{
+    if (!dateTime.isValid())
+        return QDateTime();
+
+    QDate date(dateTime.date());
+    QTime time(dateTime.time());
+
+    switch (step.timeType)
+    {
+    case YearStep:
+        return QDateTime(QDate(date.year() - date.year() % step.timeStep, 1, 1));
+    case MonthStep:
+        return QDateTime(QDate(date.year(), date.month()
+                               - (date.month() - 1) % step.timeStep, 1));
+    case WeekStep:
+    {
+        date = date.addDays(1 - date.dayOfWeek());
+        date = date.addDays(-(date.weekNumber() - 1) % step.timeStep);
+        return QDateTime(date);
+    }
+    case DayStep:
+        date = date.addDays(-date.dayOfYear() % step.timeStep);
+        return QDateTime(date);
+    case HourStep:
+        return QDateTime(date, QTime(time.hour()
+                                     - time.hour() % step.timeStep, 0),
+                         dateTime.timeSpec());
+    case MinStep:
+        return QDateTime(date, QTime(time.hour(), time.minute()
+                                     - time.minute() % step.timeStep),
+                         dateTime.timeSpec());
+    case SecStep:
+        return QDateTime(date, QTime(time.hour(), time.minute(),
+                                     time.second()
+                                     - time.second() % step.timeStep),
+                         dateTime.timeSpec());
+    default:
+        return QDateTime();
+    }
+}
+
+QDateTime RRDGrid::timeGridNext(
+        const QDateTime &date,
+        const RRDGrid::Step &step) const
+{
+    if (!date.isValid())
+        return QDateTime();
+
+    switch (step.timeType)
+    {
+    case SecStep:
+        return date.addSecs(step.timeStep);
+    case MinStep:
+        return date.addSecs(step.timeStep * 60);
+    case HourStep:
+        return date.addSecs(step.timeStep * 60 * 60);
+    case DayStep:
+        return date.addDays(step.timeStep);
+    case WeekStep:
+        return date.addDays(step.timeStep * 7);
+    case MonthStep:
+        return date.addMonths(step.timeStep);
+    case YearStep:
+        return date.addYears(step.timeStep);
+    default:
+        return date;
+    }
 }
 
 void RRDGrid::prepare()
@@ -168,47 +225,56 @@ void RRDGrid::prepare()
     if (!view.isValid())// || view == d_ptr->view)
         return;
 
-    QPointF step = gridStep();
+    Step step;
+    gridStep(step);
 
-    updateHorizontalGrid(step.y(), view);
-    updateVerticalGrid(step.x(), view);
+    updateHorizontalGrid(step, view);
+    updateVerticalGrid(step, view);
     d_ptr->step = step;
     d_ptr->view = view;
 }
 
-
-void RRDGrid::updateVerticalGrid(qreal step, const QRectF &view)
+/*
+ * TODO: here's one of the most expensive functions, we should detect wether
+ * the move a forward/backward move and remove timeGridNext calls.
+ */
+void RRDGrid::updateVerticalGrid(const RRDGrid::Step &step, const QRectF &view)
 {
     RRDPathGroup *group = pathGroup();
-    qreal x = view.left();
-    x -= (fmod(x, step)) - step;
+    QDateTime origin(QDateTime::fromTime_t((uint) view.left()));
+    QDateTime x = timeGridMod(origin, step);
 
     int idx = 0;
-    for (; x < view.right() && idx < GRID_MAX; x += step)
+    for (x = timeGridNext(x, step);
+         x.toTime_t() < view.right() && idx < GRID_MAX;
+         x = timeGridNext(x, step))
     {
         RRDGridLine *line = (idx >= d_ptr->vertical.size()) ?
             addVerticalLine() :
             d_ptr->vertical[idx];
-        line->setX(group->mapToParent(x, 0).x());
-        line->setLegendText(QString("pwet?"));
+        line->setX(group->mapToParent(x.toTime_t(), 0).x());
         ++idx;
     }
 
     while (idx < d_ptr->vertical.size())
         delete d_ptr->vertical.takeLast();
+
+    setOriginLabel(Qt::Vertical, origin.toString(Qt::ISODate));
 }
 
-void RRDGrid::updateHorizontalGrid(qreal step, const QRectF &view)
+void RRDGrid::updateHorizontalGrid(
+        const RRDGrid::Step &step,
+        const QRectF &view)
 {
     RRDPathGroup *group = pathGroup();
     qreal y = view.top();
-    y -= (fmod(y, step)) - step;
+    y -= (fmod(y, step.valueStep)) - step.valueStep;
 
     if (d_ptr->horizontal.isEmpty())
         addHorizontalLine();
 
     int idx = 0;
-    for (; y < view.bottom() && idx < GRID_MAX; y += step)
+    for (; y < view.bottom() && idx < GRID_MAX; y += step.valueStep)
     {
         RRDGridLine *line = (idx >= d_ptr->horizontal.size()) ?
             addHorizontalLine() :
@@ -221,8 +287,7 @@ void RRDGrid::updateHorizontalGrid(qreal step, const QRectF &view)
     while (idx < d_ptr->horizontal.size())
         delete d_ptr->horizontal.takeLast();
 
-    //setVerticalOriginLegend(view);
-    //d_ptr->vertOrigin->setText(QString::number(view.bottom()));
+    setOriginLabel(Qt::Horizontal, QString::number(-view.bottom()));
 }
 
 RRDGridLine *RRDGrid::addHorizontalLine()
@@ -233,6 +298,29 @@ RRDGridLine *RRDGrid::addHorizontalLine()
                                 gridBound.left(), gridBound.right(),
                                 this, widget()->scene()));
     return d_ptr->horizontal.last();
+}
+
+void RRDGrid::setOriginLabel(Qt::Orientation orientation, const QString &label)
+{
+    switch (orientation)
+    {
+    case Qt::Vertical:
+        d_ptr->vertOrigin->setText(label); break;
+    case Qt::Horizontal:
+        d_ptr->horizOrigin->setText(label); break;
+    }
+    updateOriginLabelPos();
+}
+
+void RRDGrid::updateOriginLabelPos()
+{
+    QRectF bound(d_ptr->horizOrigin->boundingRect());
+    d_ptr->horizOrigin->setPos(-bound.width() - GRID_LABEL_MARGIN, geometry().height() -
+                               bound.center().y());
+
+    bound = d_ptr->vertOrigin->boundingRect();
+    d_ptr->vertOrigin->setPos(-bound.center().x(), geometry().height() +
+                              GRID_LABEL_MARGIN);
 }
 
 RRDGridLine *RRDGrid::addVerticalLine()
@@ -249,10 +337,11 @@ void RRDGrid::onVerticalGeometryChanged()
 {
     QRectF bound(boundingRect());
 
-
     LineList::iterator it = d_ptr->vertical.begin();
     for (; it != d_ptr->vertical.end(); ++it)
         (*it)->setLine(0, bound.top(), 0, bound.bottom());
+
+    updateOriginLabelPos();
 }
 
 void RRDGrid::onHorizontalGeometryChanged()
@@ -262,21 +351,20 @@ void RRDGrid::onHorizontalGeometryChanged()
     LineList::iterator it = d_ptr->horizontal.begin();
     for (; it != d_ptr->horizontal.end(); ++it)
         (*it)->setLine(bound.left(), 0, bound.right(), 0);
-
 }
 
 void RRDGrid::onVerticalPosChanged()
 {
     QRectF view = widget()->graphItem()->pathGroupBoundingRect();
 
-    updateHorizontalGrid(d_ptr->step.y(), view);
+    updateHorizontalGrid(d_ptr->step, view);
 }
 
 void RRDGrid::onHorizontalPosChanged()
 {
     QRectF view = widget()->graphItem()->pathGroupBoundingRect();
 
-    updateVerticalGrid(d_ptr->step.x(), view);
+    updateVerticalGrid(d_ptr->step, view);
 }
 
 void RRDGrid::onGeometryChanged()

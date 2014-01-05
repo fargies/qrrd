@@ -55,13 +55,11 @@ RRDWidget::RRDWidget(QWidget *parent) :
     QGraphicsView(parent),
     d_ptr(new RRDWidgetPrivate)
 {
-    setDragMode(QGraphicsView::ScrollHandDrag);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setScene(new QGraphicsScene(this));
 
     d_ptr->main = new QGraphicsWidget();
-    d_ptr->main->setContentsMargins(20, 20, 20, 20);
     scene()->addItem(d_ptr->main);
     d_ptr->main->setGeometry(window()->rect());
 
@@ -72,6 +70,7 @@ RRDWidget::RRDWidget(QWidget *parent) :
     layout->addItem(d_ptr->graph, 1, 1);
 
     d_ptr->grid = new RRDGrid(this, d_ptr->main);
+    d_ptr->grid->setZValue(-1);
 }
 
 RRDWidget::~RRDWidget()
@@ -159,6 +158,6 @@ void RRDWidget::updatePaths()
 
 void RRDWidget::resizeEvent(QResizeEvent * /*event*/)
 {
-    fitInView(d_ptr->main);
+    d_ptr->main->setGeometry(window()->rect());
 }
 

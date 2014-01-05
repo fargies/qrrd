@@ -103,54 +103,47 @@ void RRDPlotter::prepare(
         const QDateTime &start,
         const QDateTime &end)
 {
+    RRDPlotterPrivate *d = d_ptr.data();
     if (!isValid() || !start.isValid() || !end.isValid() ||
             start == end)
         return;
 
-    RRA current(d_ptr->rrd.current());
+    RRA rra(d->rrd.current());
     // FIXME: handle resolution ?
-    if (!current.isValid()
-            || current.function() != d_ptr->func
-            || !current.isInRange(start, end))
+    if (!rra.isValid()
+            || rra.function() != d->func
+            || !rra.isInRange(start, end))
     {
-        d_ptr->rrd.fetch(d_ptr->func, start, end);
-        current = d_ptr->rrd.current();
+        d->rrd.fetch(d->func, start, end);
+        rra = d->rrd.current();
     }
 
-    //FIXME: display all the graphs ?
-    uint step(current.step());
-    uint cur = 0;
-    const QByteArray data(d_ptr->rrd.items());
+    uint step(rra.step());
+    uint cur = rra.first().toTime_t();
+    const QByteArray data(d->rrd.items());
     QDataStream stream(data);
     stream.setByteOrder(QDataStream::LittleEndian);
 
-    for (int i = 0; i < d_ptr->paths.size(); ++i)
+    for (int i = 0; i < d->paths.size(); ++i)
     {
-        d_ptr->paths[i].path = QPainterPath();
-        d_ptr->paths[i].path.moveTo(cur, 0);
+        d->paths[i].path = QPainterPath();
+        d->paths[i].path.moveTo(cur, 0);
     }
 
     while (!stream.atEnd())
     {
-        for (int i = 0; i < d_ptr->paths.size(); ++i)
+        for (int i = 0; i < d->paths.size(); ++i)
         {
             rrd_value_t v;
             stream >> v;
 
-            d_ptr->paths[i].path.lineTo(cur, -v);
+            d->paths[i].path.lineTo(cur, -v);
         }
         cur += step;
     }
 
-    uint delta = end.toTime_t() - start.toTime_t();
-    uint startTrans = current.first().toTime_t() - start.toTime_t();
-
-    for (int i = 0; i < d_ptr->paths.size(); ++i)
-    {
-        d_ptr->paths[i].path.lineTo(cur, 0);
-        if (startTrans)
-            d_ptr->paths[i].path.translate(startTrans, 0);
-    }
+    for (int i = 0; i < d->paths.size(); ++i)
+        d->paths[i].path.lineTo(cur, 0);
 }
 
 QPainterPath RRDPlotter::path(uint index) const

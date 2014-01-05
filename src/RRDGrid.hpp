@@ -19,7 +19,28 @@ public:
     explicit RRDGrid(RRDWidget *widget, QGraphicsWidget *parent = 0);
     ~RRDGrid();
 
+    //    void setTitle(const QString &title);
+    //    void setLabel(Qt::Orientation orientation, const QString &label);
+
     void prepare();
+
+    /**
+     * @brief The TimeStep enum
+     * @details used to define the grid step on the horizontal axis
+     * (vertical grid).
+     */
+    enum TimeStep
+    {
+        SecStep,
+        MinStep,
+        HourStep,
+        DayStep,
+        WeekStep,
+        MonthStep,
+        YearStep
+    };
+
+    class Step;
 
 protected slots:
 
@@ -35,18 +56,21 @@ protected:
     RRDWidget *widget() const;
     RRDPathGroup *pathGroup() const;
 
-    void updateHorizontalGrid(qreal step, const QRectF &view);
-    void updateVerticalGrid(qreal step, const QRectF &view);
+    void updateHorizontalGrid(const Step &step, const QRectF &view);
+    void updateVerticalGrid(const Step &step, const QRectF &view);
 
     RRDGridLine *addVerticalLine();
     RRDGridLine *addHorizontalLine();
 
+    void setOriginLabel(Qt::Orientation orientation, const QString &label);
+    void updateOriginLabelPos();
+
     /**
-     * @brief return the grid steps to use in graph's coordinates
+     * @brief compute the grid steps to use in graph's coordinates
      */
-    QPointF gridStep() const;
-    qreal timeGridNext();
-    QRectF sceneView() const;
+    void gridStep(Step &step) const;
+    QDateTime timeGridMod(const QDateTime &date, const Step &step) const;
+    QDateTime timeGridNext(const QDateTime &date, const Step &step) const;
 
     QScopedPointer<RRDGridPrivate> d_ptr;
 };
