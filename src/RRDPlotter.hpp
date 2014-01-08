@@ -1,23 +1,26 @@
 /*
-** This document and/or file is SOMFY's property. All information it
-** contains is strictly confidential. This document and/or file shall
-** not be used, reproduced or passed on in any way, in full or in part
-** without SOMFY's prior written approval. All rights reserved.
-** Ce document et/ou fichier est la propritye SOMFY. Les informations
-** quil contient sont strictement confidentielles. Toute reproduction,
-** utilisation, transmission de ce document et/ou fichier, partielle ou
-** intégrale, non autorisée préalablement par SOMFY par écrit est
-** interdite. Tous droits réservés.
-** 
-** Copyright © (2009-2012), Somfy SAS. All rights reserved.
-** All reproduction, use or distribution of this software, in whole or
-** in part, by any means, without Somfy SAS prior written approval, is
-** strictly forbidden.
+** Copyright (C) 2014 Fargier Sylvain <fargier.sylvain@free.fr>
+**
+** This software is provided 'as-is', without any express or implied
+** warranty.  In no event will the authors be held liable for any damages
+** arising from the use of this software.
+**
+** Permission is granted to anyone to use this software for any purpose,
+** including commercial applications, and to alter it and redistribute it
+** freely, subject to the following restrictions:
+**
+** 1. The origin of this software must not be misrepresented; you must not
+**    claim that you wrote the original software. If you use this software
+**    in a product, an acknowledgment in the product documentation would be
+**    appreciated but is not required.
+** 2. Altered source versions must be plainly marked as such, and must not be
+**    misrepresented as being the original software.
+** 3. This notice may not be removed or altered from any source distribution.
 **
 ** RRDPlotter.hpp
 **
 **        Created on: Dec 27, 2013
-**   Original Author: Sylvain Fargier <sylvain.fargier@somfy.com>
+**   Original Author: Fargier Sylvain <fargier.sylvain@free.fr>
 **
 */
 
