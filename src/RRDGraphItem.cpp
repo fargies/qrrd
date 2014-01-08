@@ -144,7 +144,7 @@ void RRDGraphItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent * evt)
             break;
         default: break;
     }
-    pos = boundingRect().center() - d_ptr->group->mapToParent(pos);
+    pos = evt->pos() - d_ptr->group->mapToParent(pos);
     d_ptr->group->moveBy(pos.x(), pos.y());
 }
 
@@ -167,6 +167,30 @@ void RRDGraphItem::mouseReleaseEvent(QGraphicsSceneMouseEvent *evt)
     if (evt->button() != Qt::LeftButton && evt->button() != Qt::RightButton)
         return;
 
+    d_ptr->group->fit();
+}
+
+void RRDGraphItem::wheelEvent(QGraphicsSceneWheelEvent *event)
+{
+    if (event->orientation() != Qt::Vertical)
+        return;
+
+    d_ptr->group->stopAnimation();
+    QPointF pos = d_ptr->group->mapFromParent(event->pos());
+
+    qreal delta = (qreal) event->delta() / 60;
+    if (delta > 0)
+        d_ptr->zoom /= delta;
+    else
+        d_ptr->zoom *= qAbs(delta);
+
+    if (d_ptr->zoom.height() > 1)
+        d_ptr->zoom = QSizeF(1, 1);
+
+    fit();
+
+    pos = event->pos() - d_ptr->group->mapToParent(pos);
+    d_ptr->group->moveBy(pos.x(), pos.y());
     d_ptr->group->fit();
 }
 

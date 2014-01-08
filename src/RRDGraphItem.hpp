@@ -63,6 +63,7 @@ protected:
     void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *evt);
     void mouseMoveEvent(QGraphicsSceneMouseEvent *event);
     void mouseReleaseEvent(QGraphicsSceneMouseEvent *event);
+    void wheelEvent(QGraphicsSceneWheelEvent *event);
 
     QScopedPointer<RRDGraphItemPrivate> d_ptr;
 };
